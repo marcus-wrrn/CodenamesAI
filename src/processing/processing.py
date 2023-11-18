@@ -1,19 +1,18 @@
 from sentence_transformers import SentenceTransformer
 import json
 
-
-
 class Processing:
     def __init__(self, encoder: SentenceTransformer | None, filepath="../data/wordlist-eng.txt", download=False) -> None:
-        print("What?")
         if download:
-            self.words = self._get_words(filepath)
-            self.embeddings = self._get_embeddings(encoder, self.words)
+            self.codewords = self._get_words(filepath)
+            self.embeddings = self._get_embeddings(encoder, self.codewords)
+            self.guesses = self._get_words("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/nouns.txt")
         else:
             with open(filepath, 'r') as file:
                 data = json.load(file)
-            self.words = data['words']
+            self.codewords = data['codewords']
             self.embeddings = data['embeddings']
+            self.geusses = data['guesses']
         
 
     # Initializers
@@ -31,7 +30,8 @@ class Processing:
     
     def to_json(self, filepath: str):
         data = {
-            'words': [word for word in self.words],
+            'codewords': [word for word in self.codewords],
+            'guesses': [word for word in self.guesses],
             'embeddings': [[float(x) for x in embedding] for embedding in self.embeddings]
         }
 
@@ -39,5 +39,5 @@ class Processing:
             json.dump(data, file)
 
 if __name__ == "__main__":
-    proc = Processing(encoder=None, filepath="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    ...
+    proc = Processing(encoder=None, filepath="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/wordlist-eng.txt", download=True)
+    proc.to_json("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
