@@ -4,15 +4,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from processing.processing import Processing
-from transformers import DebertaConfig, DebertaModel, AutoTokenizer
+from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
 import numpy as np
 
 #Mean Pooling - Take attention mask into account for correct averaging
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-
 def mean_pooling(model_output, attention_mask):
     token_embeddings = model_output[0] #First element of model_output contains all token embeddings
     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
@@ -47,40 +42,39 @@ class SentenceEncoder():
         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
 
 
-# class MainModel(nn.Module):
-#     def __init__(self, model_name="microsoft/deberta-base") -> None:
-#         super().__init__()
-#         self.model_name = model_name
-#         self.deberta = DebertaModel.from_pretrained(model_name)
-#         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        
-#     def mean_pooling(self, model_output, attention_mask):
-#         token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-#         input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-#         return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+class CodeGiver(nn.Module):
+    def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
+        super().__init__()
+        self.model_name = model_name
+        self.deberta = DebertaModel.from_pretrained(self.model_name)
+        self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
+        self.device = device
 
-#     def tokenize_sentences(self, sentences):
-#         return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
+    def tokenize_sentences(self, sentences):
+        return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
 
-#     def get_tokens(self, text: str):
-#         tokens = self.tokenizer(text, add_special_tokens=False)
-#         return tokens.data['input_ids']
     
-#     @torch.no_grad()
-#     def tokenize(self, text: str) -> torch.Tensor:
-#         return self.tokenizer(text, add_special_tokens=True, return_tensors='pt')
+    def tokenize(self, positive_text: str, negative_text: str) -> torch.Tensor:
+        return self.tokenizer(positive_text, negative_text, add_special_tokens=True, return_tensors='pt').to(self.device)
 
-#     def forward(self, text: str):
-#         inputs = self.tokenize(text)
-#         logits = self.deberta(**inputs).last_hidden_state
-#         # Mean pool output
-#         pooled = logits.mean(dim=1)
-#         # Normalize output
-#         return F.normalize(pooled, p=2, dim=1)
+    def forward(self, positive_text: str, negative_text: str):
+        inputs = self.tokenize(positive_text, negative_text)
+        logits = self.deberta(**inputs).last_hidden_state
+        # Mean pool output
+        pooled = logits.mean(dim=1)
+        # Normalize output
+        return F.normalize(pooled, p=2, dim=1)
 
 
 def main():
-    ...
+    positive_words = "cat dog house"
+    negative_words = "car train sun"
+
+    model = CodeGiver()
+
+    out = model(positive_words, negative_words)
+
+    print(out.shape)
 
 if __name__ == "__main__":
     main()
