@@ -46,14 +46,10 @@ class CodeGiver(nn.Module):
     def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
         super().__init__()
         self.model_name = model_name
-        self.deberta = DebertaModel.from_pretrained(self.model_name)
-        self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
         self.device = device
-
-    def tokenize_sentences(self, sentences):
-        return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
-
-    
+        self.deberta = DebertaModel.from_pretrained(self.model_name).to(self.device)
+        self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
+        
     def tokenize(self, positive_text: str, negative_text: str) -> torch.Tensor:
         return self.tokenizer(positive_text, negative_text, add_special_tokens=True, return_tensors='pt').to(self.device)
 
