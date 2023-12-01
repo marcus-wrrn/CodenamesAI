@@ -5,13 +5,15 @@ class Processing:
     def __init__(self, encoder: SentenceTransformer | None, filepath="../data/wordlist-eng.txt", download=False) -> None:
         if download:
             self.codewords = self._get_words(filepath)
-            self.embeddings = self._get_embeddings(encoder, self.codewords)
+            self.code_embeddings = self._get_embeddings(encoder, self.codewords)
+
             self.guesses = self._get_words("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/nouns.txt")
+            self.geuss_embeddings = self._get_embeddings(encoder, self.guesses)
         else:
             with open(filepath, 'r') as file:
                 data = json.load(file)
             self.codewords = data['codewords']
-            self.embeddings = data['embeddings']
+            self.code_embeddings = data['embeddings']
             self.geusses = data['guesses']
         
 
@@ -32,7 +34,8 @@ class Processing:
         data = {
             'codewords': [word for word in self.codewords],
             'guesses': [word for word in self.guesses],
-            'embeddings': [[float(x) for x in embedding] for embedding in self.embeddings]
+            'code_embeddings': [[float(x) for x in embedding] for embedding in self.code_embeddings],
+            'guess_embeddings': [[float(x) for x in embedding] for embedding in self.geuss_embeddings]
         }
 
         with open(filepath, 'w') as file:
