@@ -7,39 +7,39 @@ from processing.processing import Processing
 from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
 import numpy as np
 
-#Mean Pooling - Take attention mask into account for correct averaging
-def mean_pooling(model_output, attention_mask):
-    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+# #Mean Pooling - Take attention mask into account for correct averaging
+# def mean_pooling(model_output, attention_mask):
+#     token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+#     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+#     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-class SentenceEncoder():
-    """
-    Sentence Transformer used for encoding input sentences
+# class SentenceEncoder():
+#     """
+#     Sentence Transformer used for encoding input sentences
 
-    TODO: Add max_token length
-    """
-    def __init__(self, 
-                 device="cpu",
-                 tokenizer_path="sentence-transformers/all-mpnet-base-v2", 
-                 model_path="sentence-transformers/all-mpnet-base-v2" 
-                ):
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        self.model = AutoModel.from_pretrained(model_path).to(device)
-        self.device = device
+#     TODO: Add max_token length
+#     """
+#     def __init__(self, 
+#                  device="cpu",
+#                  tokenizer_path="sentence-transformers/all-mpnet-base-v2", 
+#                  model_path="sentence-transformers/all-mpnet-base-v2" 
+#                 ):
+#         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+#         self.model = AutoModel.from_pretrained(model_path).to(device)
+#         self.device = device
 
-    def tokenize_sentences(self, sentences):
-        return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
+#     def tokenize_sentences(self, sentences):
+#         return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
     
-    def get_token_embeddings(self, tokenized_sentences):
-        return self.model(**tokenized_sentences)
+#     def get_token_embeddings(self, tokenized_sentences):
+#         return self.model(**tokenized_sentences)
 
-    def encode(self, sentences, normalize=True) -> torch.Tensor:
-        tokenized_sents = self.tokenize_sentences(sentences)
-        token_embeddings = self.get_token_embeddings(tokenized_sents)
-        sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
-        # Consider not adding normalization (does that improve performance?)
-        return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
+#     def encode(self, sentences, normalize=True) -> torch.Tensor:
+#         tokenized_sents = self.tokenize_sentences(sentences)
+#         token_embeddings = self.get_token_embeddings(tokenized_sents)
+#         sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
+#         # Consider not adding normalization (does that improve performance?)
+#         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
 
 
 class SentenceEncoder(nn.Module):
@@ -95,7 +95,9 @@ class EncoderLayer(nn.Module):
 
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
+
 class SimpleEncoderLayer(nn.Module):
+    """Only encodes positive and negative sentences"""
     def __init__(self, model_name='all-mpnet-base-v2'):
         super().__init__()
         self.name = model_name
@@ -106,7 +108,7 @@ class SimpleEncoderLayer(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(512, 512),
             nn.ReLU(),
-            nn.Linear(512, 758)
+            nn.Linear(512, 768)
         )
     
     def forward(self, pos_texts, neg_texts):
@@ -115,7 +117,6 @@ class SimpleEncoderLayer(nn.Module):
 
         concatenated = torch.cat((pos_emb, neg_emb), 0)
         return self.fc(concatenated)
-
 
 
 class CodeGiver(nn.Module):
@@ -139,14 +140,17 @@ class CodeGiver(nn.Module):
 
 
 def main():
+    # testing
     positive_words = "cat dog house"
     negative_words = "car train sun"
+    device = torch.device('cuda')
 
-    model = CodeGiver()
+    encoder = SimpleEncoderLayer()
+    encoder.to(device)
+    vals = encoder(positive_words, negative_words)
 
-    out = model(positive_words, negative_words)
-
-    print(out.shape)
+    print(vals.shape)
+    print("Done")
 
 if __name__ == "__main__":
     main()
