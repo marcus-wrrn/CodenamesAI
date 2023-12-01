@@ -48,16 +48,17 @@ class WordData:
         self.words = sentence.split(' ')
         self.embeddings = [code_dict[word] for word in self.wor]
 
-
-
-if __name__ == "__main__":
-    
+def test_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
     model = SentenceTransformer('all-mpnet-base-v2')
-    
+
     for data in dataloader:
         pos_sents, neg_sents, pos_embs, neg_embs = data
         encs = model.encode(pos_sents)
         print(encs.shape)
+
+if __name__ == "__main__":
+    test_dataloader()
+    
     
