@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 import torch
 
 class GameBoard:
-    def __init__(self, words: list, pos_num=9, neg_num=9, has_assassin=False):
+    def __init__(self, words: list, pos_num=6, neg_num=6, has_assassin=False):
         nwords = len(words)
         assert nwords > pos_num + neg_num + int(has_assassin)
 
@@ -27,7 +27,7 @@ class GameBoard:
     def remove_word(self, word: str):
         """
         0 -: Word has been removed
-        1 -: Word belongs to other team
+        1 -: Word does not exist
         -1 -: Assassin has been called end game (should not get here)
         """
         
@@ -51,19 +51,25 @@ class GameBoard:
     
 
 class GameManager:
-    def __init__(self, wordfile: str, encoder: SentenceTransformer) -> None:
-        self.words = self._get_words(wordfile, allWords=False)
-        self.board = GameBoard(self.words)
+    def __init__(self, wordfile: str, encoder: SentenceTransformer, num_positive=9, num_negative=9, has_assassin=False, nwords=25) -> None:
+        self.words = self._get_words(wordfile)
+        self.nwords = nwords
+        self.num_pos = num_positive
+        self.num_neg = num_negative
+        self.has_assassin = has_assassin
+
+        self.board = self._create_gameboard()
         self.encoder = encoder
 
-    def _get_words(self, wordfile: str, allWords: bool, numOfWords=25):
+    def _get_words(self, wordfile: str):
         with open(wordfile, 'r') as fp:
             data = json.load(fp)
         words = data['codewords']
         random.shuffle(words)
-        if allWords:
-            return words
-        return words[:numOfWords]
+        return words
+    
+    def _create_gameboard(self):
+        return GameBoard(self.words[:self.nwords], self.num_pos, self.num_neg, self.has_assassin)
     
     def get_sentences(self):
         pos = " ".join(self.board.pos_words)
@@ -78,15 +84,41 @@ class GameManager:
             neg_emb = self.encoder.encode(neg, )
             neutral_emb = self.encoder.encode(neutral)
         return pos_emb, neg_emb, neutral_emb
+    
+    def shuffle_board(self):
+        random.shuffle(self.words)
+        self.board = self._create_gameboard()
+
+def create_dataset(game_manager: GameManager, filepath: str, num_datapoints: int, max_words=3, fixed_size=True):
+    pos_words = []
+    neg_words = []
+    neut_words = []
+    for i in range(num_datapoints):
+        pos, neg, neut = game_manager.get_sentences()
+        pos_words.append(pos)
+        neg_words.append(neg)
+        neut_words.append(neut)
+        # Shuffle board to get new words each time
+        game_manager.shuffle_board()
+    
+    data = {
+        'positive': pos_words,
+        'negative': neg_words,
+        'neutral': neut_words
+    }
+
+    with open(filepath, 'w') as file:
+        json.dump(data, file)
+    print("Dataset created")
 
 def main():
     wordfile = "/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json"
+    practice_dataset = "/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json"
+
+
     encoder = SentenceTransformer('all-mpnet-base-v2')
-    manager = GameManager(wordfile, encoder)
-
-    encs = manager.get_encoding()
-
-    print("Done")
+    manager = GameManager(wordfile, encoder, num_positive=3, num_negative=3, has_assassin=False, nwords=9)
+    create_dataset(manager, practice_dataset, num_datapoints=10000, max_words=3)
 
     
 if __name__ == "__main__":
