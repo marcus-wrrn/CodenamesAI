@@ -96,7 +96,7 @@ class EncoderLayer(nn.Module):
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
 
-class SimpleEncoderLayer(nn.Module):
+class SimpleCodeGiver(nn.Module):
     """Only encodes positive and negative sentences"""
     def __init__(self, model_name='all-mpnet-base-v2'):
         super().__init__()
@@ -111,7 +111,7 @@ class SimpleEncoderLayer(nn.Module):
             nn.Linear(512, 768)
         )
     
-    def forward(self, pos_texts, neg_texts):
+    def forward(self, pos_texts: str, neg_texts: str):
         pos_emb = self.pos_encoder(pos_texts)
         neg_emb = self.neg_encoder(neg_texts)
 
@@ -145,7 +145,7 @@ def main():
     negative_words = "car train sun"
     device = torch.device('cuda')
 
-    encoder = SimpleEncoderLayer()
+    encoder = SimpleCodeGiver()
     encoder.to(device)
     vals = encoder(positive_words, negative_words)
 

@@ -42,11 +42,6 @@ class CodeGiverDataset(Dataset):
 
         return pos_sent, neg_sent, pos_embeddings, neg_embeddings
 
-class WordData:
-    def __init__(self, sentence: str, code_dict: dict):
-        self.sent = sentence
-        self.words = sentence.split(' ')
-        self.embeddings = [code_dict[word] for word in self.wor]
 
 def test_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")
