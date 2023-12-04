@@ -13,10 +13,6 @@ class TripletMeanLoss(nn.Module):
         super(TripletMeanLoss, self).__init__()
         self.margin = margin
 
-    def calc_sim_scores(self, anchor, emb):
-        stack = torch.stack([util.cos_sim(anchor, e) for e in emb])
-        return stack
-
     def forward(self, anchor, pos_encs, neg_encs):
         anchor_expanded = anchor.unsqueeze(1)
 
@@ -27,8 +23,9 @@ class TripletMeanLoss(nn.Module):
         neg_score = torch.mean(neg_score, dim=1)
         loss = pos_score - neg_score + self.margin
         return F.relu(loss).mean()
-    
-class TriplietCombinedLoss(TripletMeanLoss):
+
+
+class CombinedAsymmetricTripletLoss(TripletMeanLoss):
     def __init__(self, margin=1):
         super().__init__(margin)
         self.triplet_loss = nn.TripletMarginLoss(margin=self.margin, p=2)

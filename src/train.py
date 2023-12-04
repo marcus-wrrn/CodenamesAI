@@ -17,19 +17,34 @@ def init_hyperparameters(model: SimpleCodeGiver):
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
 
-def train(n_epochs: int, model: SimpleCodeGiver, data_loader: DataLoader, device: torch.device, model_path: str):
+@torch.no_grad()
+def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletMeanLoss, device: torch.device):
+    model.eval()
+    total_loss = 0.0
+    for i, data in enumerate(valid_loader, 0):
+        pos_sents, neg_sents, pos_embeddings, neg_embeddings = data
+        pos_embeddings, neg_embeddings = pos_embeddings.to(device), neg_embeddings.to(device)
+
+        logits = model(pos_sents, neg_sents)
+        loss = loss_fn(logits, pos_embeddings, neg_embeddings)
+        total_loss += loss.item()
+    model.train()
+    return total_loss / len(valid_loader)
+
+def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
     loss_fn, optimizer, scheduler = init_hyperparameters(model)
     print("Training")
     model.train()
 
     losses_train = []
+    losses_valid = []
     print(f"Starting training at: {datetime.datetime.now()}")
     for epoch in range(1, n_epochs + 1):
         print(f"Epoch: {epoch}")
         loss_train = 0.0
-        for i, data in enumerate(data_loader, 0):
+        for i, data in enumerate(train_loader, 0):
             if (i % 100 == 0):
-                print(f"{datetime.datetime.now()}: Iteration: {i}/{len(data_loader)}")
+                print(f"{datetime.datetime.now()}: Iteration: {i}/{len(train_loader)}")
             pos_sents, neg_sents, pos_embeddings, neg_embeddings = data
             # Put embeddings on device
             pos_embeddings = pos_embeddings.to(device)
@@ -44,31 +59,33 @@ def train(n_epochs: int, model: SimpleCodeGiver, data_loader: DataLoader, device
             loss_train += loss.item()
             
         scheduler.step()
-        avg_loss = loss_train / len(data_loader)
+        avg_loss = loss_train / len(train_loader)
         losses_train.append(avg_loss)
+        # Validate model output
+        validation_loss = validate(model, valid_dataloader, loss_fn, device)
+        losses_valid.append(validation_loss)
         # Log and print save model parameters
-        training_str = f"{datetime.datetime.now()}, Epoch: {epoch}, Training Loss: {avg_loss}"
+        training_str = f"{datetime.datetime.now()}, Epoch: {epoch}, Training Loss: {avg_loss}, Validation Loss: {validation_loss}"
         print(training_str)
         if len(losses_train) == 1 or losses_train[-1] < losses_train[-2]:
                 torch.save(model.state_dict(), model_path)
         
-    return losses_train
+    return losses_train, losses_valid
 
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f"Device: {device}")
-    dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
-    dataloader = DataLoader(dataset, batch_size=32, num_workers=4)
+    train_dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data_medium.json")
+    train_dataloader = DataLoader(train_dataset, batch_size=400, num_workers=4)
+
+    valid_dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
+    valid_dataloader = DataLoader(valid_dataset, batch_size=50, num_workers=4)
+
     model = SimpleCodeGiver()
     model.to(device)
 
 
-    losses_train = train(n_epochs=10, model=model, data_loader=dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/first_model.out")
-    
-    
-    
-    
-
+    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/first_model_medium_validation.out")
     
 
 if __name__ == "__main__":

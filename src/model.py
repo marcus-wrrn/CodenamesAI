@@ -50,11 +50,11 @@ class SentenceEncoder(nn.Module):
 
         self.name = model_name
         self.encoder = SentenceTransformer(self.name)
-        self.fc = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.ReLU(),
-            nn.Linear(768, 900),
-        )
+        # self.fc = nn.Sequential(
+        #     nn.Linear(768, 768),
+        #     nn.ReLU(),
+        #     nn.Linear(768, 900),
+        # )
     
     def forward(self, text: torch.Tensor):
         encodings = self.encoder.encode(text, convert_to_tensor=True)
@@ -108,11 +108,16 @@ class SimpleCodeGiver(nn.Module):
         self.neg_encoder = SentenceEncoder(model_name)
 
         self.fc = nn.Sequential(
-            nn.Linear(1536, 1000),
+            nn.Linear(1536, 1250),
+            #nn.Dropout(0.1),
             nn.ReLU(),
-            nn.Linear(1000, 850),
+            nn.Linear(1250, 1000),
+            #nn.Dropout(0.1),
             nn.ReLU(),
-            nn.Linear(850, 768)
+            nn.Linear(1000, 1000),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1000, 768)
         )
     
     def forward(self, pos_texts: str, neg_texts: str):
