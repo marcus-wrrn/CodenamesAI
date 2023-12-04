@@ -6,7 +6,9 @@ import torch.nn.functional as F
 from processing.processing import Processing
 from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
 import numpy as np
+import os
 
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 # #Mean Pooling - Take attention mask into account for correct averaging
 # def mean_pooling(model_output, attention_mask):
 #     token_embeddings = model_output[0] #First element of model_output contains all token embeddings
@@ -49,15 +51,15 @@ class SentenceEncoder(nn.Module):
         self.name = model_name
         self.encoder = SentenceTransformer(self.name)
         self.fc = nn.Sequential(
-            nn.Linear(768, 500),
+            nn.Linear(768, 768),
             nn.ReLU(),
-            nn.Linear(500, 256),
+            nn.Linear(768, 900),
         )
     
     def forward(self, text: torch.Tensor):
         encodings = self.encoder.encode(text, convert_to_tensor=True)
-        out = self.fc(encodings)
-        return out
+        # out = self.fc(encodings)
+        return encodings
 
 
 class EncoderLayer(nn.Module):
@@ -106,9 +108,11 @@ class SimpleCodeGiver(nn.Module):
         self.neg_encoder = SentenceEncoder(model_name)
 
         self.fc = nn.Sequential(
-            nn.Linear(512, 512),
+            nn.Linear(1536, 1000),
             nn.ReLU(),
-            nn.Linear(512, 768)
+            nn.Linear(1000, 850),
+            nn.ReLU(),
+            nn.Linear(850, 768)
         )
     
     def forward(self, pos_texts: str, neg_texts: str):
