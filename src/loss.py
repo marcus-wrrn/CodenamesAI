@@ -14,14 +14,16 @@ class TripletMeanLoss(nn.Module):
         self.margin = margin
 
     def forward(self, anchor, pos_encs, neg_encs):
-        anchor_expanded = anchor.unsqueeze(1)
+        # Add extra dimension to anchor to align with the pos and neg encodings shape
+        anchor_expanded = anchor.unsqueeze(1)   # [batch, emb_size] -> [batch, 1, emb_size]
 
         pos_score = F.cosine_similarity(anchor_expanded, pos_encs, dim=2)
         pos_score = torch.mean(pos_score, dim=1)
 
         neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
         neg_score = torch.mean(neg_score, dim=1)
-        loss = pos_score - neg_score + self.margin
+
+        loss = neg_score - pos_score + self.margin
         return F.relu(loss).mean()
 
 
@@ -31,5 +33,5 @@ class CombinedAsymmetricTripletLoss(TripletMeanLoss):
         self.triplet_loss = nn.TripletMarginLoss(margin=self.margin, p=2)
     
     def forward(self, anchor, pos_encs, neg_encs):
-        """TODO: Encorporate triplet margin loss across all values in the """
+        """TODO: Encorporate triplet margin loss across all values"""
         ...
