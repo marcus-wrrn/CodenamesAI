@@ -26,6 +26,27 @@ class TripletMeanLoss(nn.Module):
         loss = neg_score - pos_score + self.margin
         return F.relu(loss).mean()
 
+class TripletMeanLossL2Distance(TripletMeanLoss):
+    def __init__(self, margin=1.0):
+        super(TripletMeanLossL2Distance, self).__init__(margin)
+    
+    def forward(self, anchor, pos_encs, neg_encs):
+        # Add extra dimension to anchor to align with the pos and neg encodings shape
+        anchor_expanded = anchor.unsqueeze(1)  # [batch, emb_size] -> [batch, 1, emb_size]
+
+        # Calculate L2 distance for positive and negative pairs
+        pos_distance = torch.norm(anchor_expanded - pos_encs, p=2, dim=2)
+        neg_distance = torch.norm(anchor_expanded - neg_encs, p=2, dim=2)
+
+        # Calculate mean of distances
+        avg_pos_distance = torch.mean(pos_distance, dim=1)
+        avg_neg_distance = torch.mean(neg_distance, dim=1)
+
+        # Calculate triplet loss
+        loss = F.relu(avg_pos_distance - avg_neg_distance + self.margin)
+
+        return loss.mean()
+
 
 class CombinedAsymmetricTripletLoss(TripletMeanLoss):
     def __init__(self, margin=1):
