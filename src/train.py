@@ -56,10 +56,12 @@ def train(n_epochs: int, model: SimpleCodeGiver, data_loader: DataLoader, device
 
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(f"Device: {device}")
     dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
     dataloader = DataLoader(dataset, batch_size=32, num_workers=4)
     model = SimpleCodeGiver()
     model.to(device)
+
 
     losses_train = train(n_epochs=10, model=model, data_loader=dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/first_model.out")
     

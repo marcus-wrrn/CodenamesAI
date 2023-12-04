@@ -37,8 +37,8 @@ class CodeGiverDataset(Dataset):
         neg_sent = self.negative_sents[index]
 
         # Get embeddings
-        pos_embeddings = [self.code_dict[word] for word in pos_sent.split(' ')]
-        neg_embeddings = [self.code_dict[word] for word in neg_sent.split(' ')]
+        pos_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in pos_sent.split(' ')])
+        neg_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neg_sent.split(' ')])
 
         return pos_sent, neg_sent, pos_embeddings, neg_embeddings
 

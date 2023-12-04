@@ -115,7 +115,7 @@ class SimpleCodeGiver(nn.Module):
         pos_emb = self.pos_encoder(pos_texts)
         neg_emb = self.neg_encoder(neg_texts)
 
-        concatenated = torch.cat((pos_emb, neg_emb), 0)
+        concatenated = torch.cat((pos_emb, neg_emb), 1)
         return self.fc(concatenated)
 
 
