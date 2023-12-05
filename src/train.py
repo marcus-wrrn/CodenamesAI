@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import datetime
 
 def init_hyperparameters(model: SimpleCodeGiver):
-    loss_fn = TripletMeanLoss()
+    loss_fn = TripletMeanLoss(margin=0.8)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler

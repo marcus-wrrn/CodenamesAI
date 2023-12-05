@@ -43,7 +43,7 @@ class CodeGiverDataset(Dataset):
         return pos_sent, neg_sent, pos_embeddings, neg_embeddings
 
 
-def test_dataloader():
+def testing_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
     model = SentenceTransformer('all-mpnet-base-v2')
@@ -54,6 +54,6 @@ def test_dataloader():
         print(encs.shape)
 
 if __name__ == "__main__":
-    test_dataloader()
+    testing_dataloader()
     
     
