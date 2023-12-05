@@ -58,6 +58,8 @@ class SentenceEncoder(nn.Module):
     
     def forward(self, text: torch.Tensor):
         encodings = self.encoder.encode(text, convert_to_tensor=True)
+        if encodings.ndim == 1:
+            encodings = encodings.unsqueeze(0)
         # out = self.fc(encodings)
         return encodings
 
@@ -123,9 +125,10 @@ class SimpleCodeGiver(nn.Module):
     def forward(self, pos_texts: str, neg_texts: str):
         pos_emb = self.pos_encoder(pos_texts)
         neg_emb = self.neg_encoder(neg_texts)
-
+        
         concatenated = torch.cat((pos_emb, neg_emb), 1)
-        return self.fc(concatenated)
+        out = self.fc(concatenated)
+        return F.normalize(out, p=2, dim=1)
 
 
 class CodeGiver(nn.Module):
