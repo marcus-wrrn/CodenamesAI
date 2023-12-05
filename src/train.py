@@ -85,7 +85,7 @@ def main():
     model.to(device)
 
 
-    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/first_model_medium_validation.out")
+    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/simple_code_giver_three_words_medium_10e_400b_normed.out")
     
 
 if __name__ == "__main__":

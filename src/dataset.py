@@ -1,6 +1,5 @@
 from torch.utils.data import Dataset, DataLoader
 import torch
-import os
 import json
 from sentence_transformers import SentenceTransformer
 
@@ -12,17 +11,29 @@ class CodeGiverDataset(Dataset):
         self.game_dir = game_dir
 
         with open(self.code_dir, 'r') as fp:
-            self.code_words = json.load(fp)
-        self.code_dict = self._create_word_dict(self.code_words)
+            self.word_data = json.load(fp)
+        self.code_dict = self._create_word_dict(self.word_data)
+        self.guess_dict = self._create_guess_dict(self.word_data)
         
         with open(self.game_dir, 'r') as fp:
-            self.data = json.load(fp)
+            self.game_data = json.load(fp)
         
-        self._process_game_data(self.data)        
+        self._process_game_data(self.game_data)        
 
 
     def _create_word_dict(self, data: json):
         return { word: embedding for word, embedding in zip(data['codewords'], data['code_embeddings']) }
+    
+    def _create_guess_dict(self, data: json):
+        return { word: embedding for word, embedding in zip(data['guesses'], data['guess_embeddings']) }
+    
+    def get_vocab(self):
+        words = []
+        embeddings = []
+        for key, value in self.guess_dict.items():
+            words.append(key)
+            embeddings.append(value)
+        return words, embeddings
     
     def _process_game_data(self, data: json):
         self.positive_sents = data['positive']
