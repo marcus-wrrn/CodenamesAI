@@ -9,53 +9,57 @@ import numpy as np
 import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
-# #Mean Pooling - Take attention mask into account for correct averaging
-# def mean_pooling(model_output, attention_mask):
-#     token_embeddings = model_output[0] #First element of model_output contains all token embeddings
-#     input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-#     return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-# class SentenceEncoder():
-#     """
-#     Sentence Transformer used for encoding input sentences
+# Take attention mask into account for correct averaging
+def mean_pooling(model_output: torch.Tensor, attention_mask: torch.Tensor):
+    token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+    input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+    return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-#     TODO: Add max_token length
-#     """
-#     def __init__(self, 
-#                  device="cpu",
-#                  tokenizer_path="sentence-transformers/all-mpnet-base-v2", 
-#                  model_path="sentence-transformers/all-mpnet-base-v2" 
-#                 ):
-#         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-#         self.model = AutoModel.from_pretrained(model_path).to(device)
-#         self.device = device
+def mean_pooling_ein(model_output, attention_mask):
+    token_embeddings = model_output[0]  # First element of model_output contains all token embeddings
+    mask = attention_mask.unsqueeze(-1)  # Add an extra dimension for broadcasting
+    sum_embeddings = torch.einsum('ijk,ij->ik', token_embeddings, mask.float())
+    sum_mask = mask.sum(1)
+    return sum_embeddings / torch.clamp(sum_mask, min=1e-9)
 
-#     def tokenize_sentences(self, sentences):
-#         return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
+class SentenceEncoderRaw():
+    """
+    Sentence Transformer used for encoding input sentences. Does not use sentence_transformers library
+
+    """
+    def __init__(self, 
+                 device="cpu",
+                 tokenizer_path="sentence-transformers/all-mpnet-base-v2", 
+                 model_path="sentence-transformers/all-mpnet-base-v2" 
+                ):
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        self.model = AutoModel.from_pretrained(model_path).to(device)
+        self.device = device
+
+    def tokenize_sentences(self, sentences):
+        return self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt').to(self.device)
     
-#     def get_token_embeddings(self, tokenized_sentences):
-#         return self.model(**tokenized_sentences)
+    def get_token_embeddings(self, tokenized_sentences):
+        return self.model(**tokenized_sentences)
 
-#     def encode(self, sentences, normalize=True) -> torch.Tensor:
-#         tokenized_sents = self.tokenize_sentences(sentences)
-#         token_embeddings = self.get_token_embeddings(tokenized_sents)
-#         sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
-#         # Consider not adding normalization (does that improve performance?)
-#         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
+    def encode(self, sentences, normalize=True) -> torch.Tensor:
+        tokenized_sents = self.tokenize_sentences(sentences)
+        token_embeddings = self.get_token_embeddings(tokenized_sents)
+        sentence_embeddings = mean_pooling_ein(token_embeddings, tokenized_sents['attention_mask'])
+        return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
+    
 
 
-class SentenceEncoder(nn.Module):
+
+
+class SentenceEncoderLib(nn.Module):
     def __init__(self, model_name='all-mpnet-base-v2'):
-        super(SentenceEncoder, self).__init__()
+        super(SentenceEncoderLib, self).__init__()
 
         self.name = model_name
         self.encoder = SentenceTransformer(self.name)
-        # self.fc = nn.Sequential(
-        #     nn.Linear(768, 768),
-        #     nn.ReLU(),
-        #     nn.Linear(768, 900),
-        # )
-    
+        
     def forward(self, text: torch.Tensor):
         encodings = self.encoder.encode(text, convert_to_tensor=True)
         if encodings.ndim == 1:
@@ -83,10 +87,10 @@ class EncoderLayer(nn.Module):
 
         model_name = 'all-mpnet-base-v2'
         self.encoders = {
-            'pos': SentenceEncoder(model_name) if has_pos else None,
-            'neg': SentenceEncoder(model_name) if has_neg else None,
-            'neutral': SentenceEncoder(model_name) if has_neutral else None,
-            'assassin': SentenceEncoder(model_name) if has_assassin else None
+            'pos': SentenceEncoderLib(model_name) if has_pos else None,
+            'neg': SentenceEncoderLib(model_name) if has_neg else None,
+            'neutral': SentenceEncoderLib(model_name) if has_neutral else None,
+            'assassin': SentenceEncoderLib(model_name) if has_assassin else None
         }
 
     def forward(self, pos_sents='', neg_sents='', neutral_sents='', assassin_word=''):
@@ -106,8 +110,8 @@ class SimpleCodeGiver(nn.Module):
         super().__init__()
         self.name = model_name
         
-        self.pos_encoder = SentenceEncoder(model_name)
-        self.neg_encoder = SentenceEncoder(model_name)
+        self.pos_encoder = SentenceEncoderLib(model_name)
+        self.neg_encoder = SentenceEncoderLib(model_name)
 
         self.fc = nn.Sequential(
             nn.Linear(1536, 1250),

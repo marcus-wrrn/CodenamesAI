@@ -19,14 +19,20 @@ class CodeGiverDataset(Dataset):
             self.game_data = json.load(fp)
         
         self._process_game_data(self.game_data)        
-
-
+    
+    # Intializers
     def _create_word_dict(self, data: json):
         return { word: embedding for word, embedding in zip(data['codewords'], data['code_embeddings']) }
     
     def _create_guess_dict(self, data: json):
         return { word: embedding for word, embedding in zip(data['guesses'], data['guess_embeddings']) }
     
+    def _process_game_data(self, data: json):
+        self.positive_sents = data['positive']
+        self.negative_sents = data['negative']
+        self.neutral_sets = data['neutral']
+
+    # Accessors
     def get_vocab(self):
         words = []
         embeddings = []
@@ -35,11 +41,6 @@ class CodeGiverDataset(Dataset):
             embeddings.append(value)
         return words, embeddings
     
-    def _process_game_data(self, data: json):
-        self.positive_sents = data['positive']
-        self.negative_sents = data['negative']
-        self.neutral_sets = data['neutral']
-
     def __len__(self):
         return len(self.positive_sents)
     

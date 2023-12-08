@@ -47,8 +47,6 @@ class TripletMeanLossL2Distance(TripletMeanLoss):
 
         return loss.mean()
 
-
-
 class CombinedAsymmetricTripletLoss(TripletMeanLoss):
     def __init__(self, margin=1):
         super().__init__(margin)

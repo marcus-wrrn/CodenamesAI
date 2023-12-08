@@ -1,9 +1,8 @@
 from sentence_transformers import SentenceTransformer
 import torch
-import torch.nn as nn
-from torch.optim.lr_scheduler import ExponentialLR, StepLR
+from torch.optim.lr_scheduler import ExponentialLR
 
-from loss import TripletMeanLoss
+from loss import TripletMeanLoss, TripletMeanLossL2Distance
 from torch.utils.data import DataLoader
 from model import SimpleCodeGiver
 from dataset import CodeGiverDataset
@@ -12,10 +11,28 @@ import matplotlib.pyplot as plt
 import datetime
 
 def init_hyperparameters(model: SimpleCodeGiver):
-    loss_fn = TripletMeanLoss(margin=0.8)
+    loss_fn = TripletMeanLossL2Distance(margin=0.8)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
+
+def save_loss_plot(losses_train: list, losses_test: list, save_path: str):
+    # Plot training losses
+    plt.plot([i for i in range(len(losses_train))], losses_train, label='Training Loss')
+    plt.plot([i for i in range(len(losses_test))], losses_test, label='Test Loss')
+    # Set the title and labels
+    plt.title("Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+
+    # Show the legend
+    plt.legend()
+
+    # Save the plot
+    plt.savefig(save_path)
+    plt.close()
+
+
 
 @torch.no_grad()
 def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletMeanLoss, device: torch.device):
@@ -85,8 +102,8 @@ def main():
     model.to(device)
 
 
-    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/simple_code_giver_three_words_medium_10e_400b_normed.out")
-    
+    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/simple_code_giver_three_words_medium_10e_400b_normed_L2_loss.out")
+    save_loss_plot(losses_train, losses_valid, save_path="example.png")
 
 if __name__ == "__main__":
     main()
