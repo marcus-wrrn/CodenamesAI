@@ -1,4 +1,4 @@
-from model import SimpleCodeGiver
+from model import SimpleCodeGiver, SentenceEncoderRaw
 from dataset import CodeGiverDataset
 import torch
 import torch.nn.functional as F
@@ -13,10 +13,15 @@ def calc_cos_score(anchor, pos_encs, neg_encs):
     
     return pos_score, neg_score
 
+def get_anchor(word_list, embedding_list, device):
+    
+    ...
+
 @torch.no_grad()
-def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.device):
+def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.device, verbose=False):
     # Initialize vector search data struct
     vectorDB = VectorSearch(dataset)
+    total_score = 0
     for data in dataset:
         pos_sents, neg_sents, pos_embs, neg_embs = data
         pos_embs, neg_embs = pos_embs.to(device), neg_embs.to(device)
@@ -24,9 +29,9 @@ def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.d
 
         words, embeddings, D = vectorDB.search(logits)
         words = words[0]
-
-        for i, word in enumerate(words):
-            print(f"{i + 1}: {word}: {D[0][i]}")
+        if verbose:
+            for i, word in enumerate(words):
+                print(f"{i + 1}: {word}: {D[0][i]}")
         
         out_word = None
         anchor = None
@@ -36,15 +41,28 @@ def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.d
                 anchor = torch.tensor(embeddings[0][i]).unsqueeze(0)
                 anchor = anchor.to(device)
                 break
-        print(f"Output: {out_word}")
-        print(f"Positive: {pos_sents}\nNegative: {neg_sents}")
         pos_score, neg_score = calc_cos_score(anchor, pos_embs, neg_embs)
-        print(f"")
+        if verbose:
+            print(f"Output: {out_word}")
+            print(f"Positive: {pos_sents}\nNegative: {neg_sents}")
+            print(f"Pos Scores: {pos_score}\nNeg Score: {neg_score}")
+        pos_score.sort(descending=True)
+        neg_score.sort(descending=False)
+        comparison = pos_score > neg_score
+        score = comparison.sum().item()
+        total_score += score
+    print(f"Average Score: {total_score/len(dataset)}")
+        
+
 
 
 def main(args):
     device = utils.get_device(args.cuda)
-    model = SimpleCodeGiver()
+    use_raw = True if args.raw.lower() == 'y' else False
+    if use_raw:
+        model = SentenceEncoderRaw(device)
+    else:
+        model = SimpleCodeGiver()
     model.load_state_dict(torch.load(args.m))
     model.to(device)
     model.eval()
@@ -60,7 +78,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
     parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
-    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/first_model_medium_validation.out")
+    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/combined_test1.pth")
+    parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     args = parser.parse_args()
     main(args)

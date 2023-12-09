@@ -89,7 +89,6 @@ def main(args):
     model = SimpleCodeGiver()
     model.to(device)
 
-
     losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
     utils.save_loss_plot(losses_train, losses_valid, save_path=loss_out)
 

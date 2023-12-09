@@ -11,8 +11,8 @@ def save_loss_plot(losses_train: list, losses_test: list, save_path: str):
     # Plot training losses
     plt.plot([i for i in range(len(losses_train))], losses_train, label='Training Loss')
     plt.plot([i for i in range(len(losses_test))], losses_test, label='Test Loss')
-    # Set the title and labels
-    plt.title("Training Loss")
+    # Set labels
+    #plt.title("Training Loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
 
