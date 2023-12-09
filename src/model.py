@@ -23,7 +23,7 @@ def mean_pooling_ein(model_output, attention_mask):
     sum_mask = mask.sum(1)
     return sum_embeddings / torch.clamp(sum_mask, min=1e-9)
 
-class SentenceEncoderRaw():
+class SentenceEncoderRaw(nn.Module):
     """
     Sentence Transformer used for encoding input sentences. Does not use sentence_transformers library
 
@@ -33,6 +33,7 @@ class SentenceEncoderRaw():
                  tokenizer_path="sentence-transformers/all-mpnet-base-v2", 
                  model_path="sentence-transformers/all-mpnet-base-v2" 
                 ):
+        super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         self.model = AutoModel.from_pretrained(model_path).to(device)
         self.device = device
@@ -43,15 +44,17 @@ class SentenceEncoderRaw():
     def get_token_embeddings(self, tokenized_sentences):
         return self.model(**tokenized_sentences)
 
-    def encode(self, sentences, normalize=True) -> torch.Tensor:
+    def forward(self, sentences, normalize=True) -> torch.Tensor:
         tokenized_sents = self.tokenize_sentences(sentences)
         token_embeddings = self.get_token_embeddings(tokenized_sents)
-        sentence_embeddings = mean_pooling_ein(token_embeddings, tokenized_sents['attention_mask'])
+        sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
     
-class SentenceEncoderLib(nn.Module):
+    
+    
+class SentenceEncoder(nn.Module):
     def __init__(self, model_name='all-mpnet-base-v2'):
-        super(SentenceEncoderLib, self).__init__()
+        super(SentenceEncoder, self).__init__()
 
         self.name = model_name
         self.encoder = SentenceTransformer(self.name)
@@ -83,10 +86,10 @@ class EncoderLayer(nn.Module):
 
         model_name = 'all-mpnet-base-v2'
         self.encoders = {
-            'pos': SentenceEncoderLib(model_name) if has_pos else None,
-            'neg': SentenceEncoderLib(model_name) if has_neg else None,
-            'neutral': SentenceEncoderLib(model_name) if has_neutral else None,
-            'assassin': SentenceEncoderLib(model_name) if has_assassin else None
+            'pos': SentenceEncoder(model_name) if has_pos else None,
+            'neg': SentenceEncoder(model_name) if has_neg else None,
+            'neutral': SentenceEncoder(model_name) if has_neutral else None,
+            'assassin': SentenceEncoder(model_name) if has_assassin else None
         }
 
     def forward(self, pos_sents='', neg_sents='', neutral_sents='', assassin_word=''):
@@ -106,8 +109,8 @@ class SimpleCodeGiver(nn.Module):
         super().__init__()
         self.name = model_name
         
-        self.pos_encoder = SentenceEncoderLib(model_name)
-        self.neg_encoder = SentenceEncoderLib(model_name)
+        self.pos_encoder = SentenceEncoder(model_name)
+        self.neg_encoder = SentenceEncoder(model_name)
 
         self.fc = nn.Sequential(
             nn.Linear(1536, 1250),
