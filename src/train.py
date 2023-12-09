@@ -1,7 +1,5 @@
-from sentence_transformers import SentenceTransformer
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-
 from loss import TripletMeanLoss, TripletMeanLossL2Distance
 from torch.utils.data import DataLoader
 from model import SimpleCodeGiver
@@ -9,30 +7,14 @@ from dataset import CodeGiverDataset
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
+import argparse
+import utils.utilities as utils
 
 def init_hyperparameters(model: SimpleCodeGiver):
     loss_fn = TripletMeanLossL2Distance(margin=0.8)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
-
-def save_loss_plot(losses_train: list, losses_test: list, save_path: str):
-    # Plot training losses
-    plt.plot([i for i in range(len(losses_train))], losses_train, label='Training Loss')
-    plt.plot([i for i in range(len(losses_test))], losses_test, label='Test Loss')
-    # Set the title and labels
-    plt.title("Training Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-
-    # Show the legend
-    plt.legend()
-
-    # Save the plot
-    plt.savefig(save_path)
-    plt.close()
-
-
 
 @torch.no_grad()
 def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletMeanLoss, device: torch.device):
@@ -89,21 +71,35 @@ def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid
         
     return losses_train, losses_valid
 
-def main():
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+def main(args):
+    device = utils.get_device(args.cuda)
+    code_data = args.code_data
+    guess_data = args.guess_data
+    val_guess_data = args.val_guess_data
+    model_out = args.model_out
+    loss_out = args.loss_out
+
     print(f"Device: {device}")
-    train_dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data_medium.json")
+    train_dataset = CodeGiverDataset(code_dir=code_data, game_dir=guess_data)
     train_dataloader = DataLoader(train_dataset, batch_size=400, num_workers=4)
 
-    valid_dataset = CodeGiverDataset(code_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json", game_dir="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
+    valid_dataset = CodeGiverDataset(code_dir=code_data, game_dir=val_guess_data)
     valid_dataloader = DataLoader(valid_dataset, batch_size=50, num_workers=4)
 
     model = SimpleCodeGiver()
     model.to(device)
 
 
-    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/simple_code_giver_three_words_medium_10e_400b_normed_L2_loss.out")
-    save_loss_plot(losses_train, losses_valid, save_path="example.png")
+    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
+    utils.save_loss_plot(losses_train, losses_valid, save_path=loss_out)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-code_data', type=str, help="Codenames dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data_medium.json")
+    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
+    parser.add_argument('-out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/model.out")
+    parser.add_argument('-loss_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/model_loss.png")
+    parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
+    args = parser.parse_args()
+    main(args)
