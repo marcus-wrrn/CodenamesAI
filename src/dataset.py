@@ -53,6 +53,18 @@ class CodeGiverDataset(Dataset):
         neg_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neg_sent.split(' ')])
 
         return pos_sent, neg_sent, pos_embeddings, neg_embeddings
+    
+
+class CodeGiverDatasetCombinedSent(CodeGiverDataset):
+    def __init__(self, code_dir: str, game_dir: str):
+        super().__init__(code_dir, game_dir)
+
+    def __getitem__(self, index):
+        pos_sents, neg_sents, pos_embeddings, neg_embeddings = super().__getitem__(index)
+
+        # Combine sentences
+        combined_sents = f"{pos_sents}\n{neg_sents}" # Experiment with different seperators (look into <SEP> token, but text should allow for multiple inputs)
+        return combined_sents, pos_embeddings, neg_embeddings
 
 
 def testing_dataloader():

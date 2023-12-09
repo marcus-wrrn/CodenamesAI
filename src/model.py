@@ -49,10 +49,6 @@ class SentenceEncoderRaw():
         sentence_embeddings = mean_pooling_ein(token_embeddings, tokenized_sents['attention_mask'])
         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
     
-
-
-
-
 class SentenceEncoderLib(nn.Module):
     def __init__(self, model_name='all-mpnet-base-v2'):
         super(SentenceEncoderLib, self).__init__()
