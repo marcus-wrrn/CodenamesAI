@@ -1,6 +1,6 @@
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-from loss import TripletMeanLoss, TripletMeanLossL2Distance
+from loss import CombinedTripletLoss, TripletMeanLossL2Distance
 from torch.utils.data import DataLoader
 from model import SimpleCodeGiver, SentenceEncoderRaw
 from dataset import CodeGiverDatasetCombinedSent
@@ -9,13 +9,13 @@ import argparse
 import utils.utilities as utils
 
 def init_hyperparameters(model: SimpleCodeGiver):
-    loss_fn = TripletMeanLoss(margin=0.8)
+    loss_fn = CombinedTripletLoss(margin=0.8)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
 
 @torch.no_grad()
-def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletMeanLoss, device: torch.device):
+def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: CombinedTripletLoss, device: torch.device):
     model.eval()
     total_loss = 0.0
     for i, data in enumerate(valid_loader, 0):

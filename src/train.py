@@ -1,6 +1,6 @@
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-from loss import TripletMeanLoss, TripletMeanLossL2Distance
+from loss import CombinedTripletLoss, TripletMeanLossL2Distance, CATLoss
 from torch.utils.data import DataLoader
 from model import SimpleCodeGiver
 from dataset import CodeGiverDataset
@@ -10,14 +10,14 @@ import datetime
 import argparse
 import utils.utilities as utils
 
-def init_hyperparameters(model: SimpleCodeGiver):
-    loss_fn = TripletMeanLossL2Distance(margin=0.8)
+def init_hyperparameters(model: SimpleCodeGiver, device):
+    loss_fn = CombinedTripletLoss(margin=2.0)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
 
 @torch.no_grad()
-def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletMeanLoss, device: torch.device):
+def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: CombinedTripletLoss, device: torch.device):
     model.eval()
     total_loss = 0.0
     for i, data in enumerate(valid_loader, 0):
@@ -31,7 +31,7 @@ def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: TripletM
     return total_loss / len(valid_loader)
 
 def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
-    loss_fn, optimizer, scheduler = init_hyperparameters(model)
+    loss_fn, optimizer, scheduler = init_hyperparameters(model, device)
     print("Training")
     model.train()
 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
     parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data_medium.json")
     parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
-    parser.add_argument('-out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/model.out")
-    parser.add_argument('-loss_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/model_loss.png")
+    parser.add_argument('-model_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/cat_model_10e_400b.pth")
+    parser.add_argument('-loss_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/cat_model_10e_400b.png")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     args = parser.parse_args()
     main(args)
