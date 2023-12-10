@@ -8,9 +8,9 @@ def triplet_loss(out_embedding, pos_embeddings, neg_embeddings, margin=0):
     neg_sim = util.cos_sim(out_embedding, neg_embeddings)/len(neg_embeddings)
     return max(pos_sim - neg_sim + margin, 0)
 
-class TripletMeanLoss(nn.Module):
+class CombinedTripletLoss(nn.Module):
     def __init__(self, margin=1.0):
-        super(TripletMeanLoss, self).__init__()
+        super(CombinedTripletLoss, self).__init__()
         self.margin = margin
 
     def forward(self, anchor, pos_encs, neg_encs):
@@ -21,12 +21,18 @@ class TripletMeanLoss(nn.Module):
         pos_score = torch.mean(pos_score, dim=1)
 
         neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
-        neg_score = torch.mean(neg_score, dim=1)
+        neg_score = torch.mean(neg_score, dim=1) * 3
 
         loss = neg_score - pos_score + self.margin
         return F.relu(loss).mean()
 
-class TripletMeanLossL2Distance(TripletMeanLoss):
+class TripletMeanLossL2Distance(CombinedTripletLoss):
+    """
+    Performs worse than CombinedTripletLoss, potentially due to MPNET being finetuned on cossine similarity not distance
+
+    Interestingly loss seems about the same, even though it tests slightly lower
+    More testing is required
+    """
     def __init__(self, margin=1.0):
         super(TripletMeanLossL2Distance, self).__init__(margin)
     
@@ -40,18 +46,35 @@ class TripletMeanLossL2Distance(TripletMeanLoss):
 
         # Calculate mean of distances
         avg_pos_distance = torch.mean(pos_distance, dim=1)
-        avg_neg_distance = torch.mean(neg_distance, dim=1)
+        avg_neg_distance = torch.mean(neg_distance, dim=1) # Attempting to weight the negative more highly,
 
         # Calculate triplet loss
         loss = F.relu(avg_pos_distance - avg_neg_distance + self.margin)
 
         return loss.mean()
 
-class CombinedAsymmetricTripletLoss(TripletMeanLoss):
-    def __init__(self, margin=1):
+class CATLoss(CombinedTripletLoss):
+    """Combined Asymmetric Triplet Loss"""
+    def __init__(self, device, margin=1):
         super().__init__(margin)
         self.triplet_loss = nn.TripletMarginLoss(margin=self.margin, p=2)
+        self.device = device
+
+    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
+        anchor_expanded = anchor.unsqueeze(1)
+
+        pos_score = F.cosine_similarity(anchor_expanded, pos_encs, dim=2)
+        neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
+        scores = torch.cat((pos_score, neg_score), dim=1)
+
+        scores, indices = scores.sort(dim=1, descending=True)
+        # Set all positive values to -1 and negative values to 1
+        # use a larger negative 
+        modified_indices = torch.where(indices < 3, -1, 1)
+        scores = torch.mul(scores, modified_indices)
     
-    def forward(self, anchor, pos_encs, neg_encs):
-        """TODO: Encorporate triplet margin loss across all values"""
-        ...
+        weights = 1/torch.arange(1, scores.shape[1] + 1).to(self.device) + 1
+        scores = torch.mul(scores, weights)
+        scores = scores.mean(dim=1)
+        loss = F.relu(scores + self.margin)
+        return loss.mean()
