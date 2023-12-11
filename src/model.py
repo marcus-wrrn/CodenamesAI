@@ -50,7 +50,7 @@ class SentenceEncoderRaw(nn.Module):
         sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
     
-    
+
     
 class SentenceEncoder(nn.Module):
     def __init__(self, model_name='all-mpnet-base-v2'):
@@ -103,6 +103,8 @@ class EncoderLayer(nn.Module):
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
 
+
+
 class SimpleCodeGiver(nn.Module):
     """Only encodes positive and negative sentences"""
     def __init__(self, model_name='all-mpnet-base-v2'):
@@ -132,6 +134,28 @@ class SimpleCodeGiver(nn.Module):
         concatenated = torch.cat((pos_emb, neg_emb), 1)
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
+
+class CodeGiverRaw(SimpleCodeGiver):
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        # Initialize encoders
+        self.pos_encoder = SentenceEncoderRaw(device)
+        self.neg_encoder = SentenceEncoderRaw(device)
+    
+    def forward(self, pos_texts: str, neg_texts: str):
+        return super().forward(pos_texts, neg_texts)
+
+    
+
+        
+
+
+
+
+
+
+
 
 
 class CodeGiver(nn.Module):
