@@ -46,7 +46,7 @@ class SentenceEncoderRaw(nn.Module):
 
     def forward(self, sentences, normalize=True) -> torch.Tensor:
         tokenized_sents = self.tokenize_sentences(sentences)
-        token_embeddings = self.get_token_embeddings(tokenized_sents)
+        token_embeddings = self.model(**tokenized_sents) 
         sentence_embeddings = mean_pooling(token_embeddings, tokenized_sents['attention_mask'])
         return F.normalize(sentence_embeddings, p=2, dim=1) if normalize else sentence_embeddings
     
@@ -102,9 +102,6 @@ class EncoderLayer(nn.Module):
 
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
-
-
-
 class SimpleCodeGiver(nn.Module):
     """Only encodes positive and negative sentences"""
     def __init__(self, model_name='all-mpnet-base-v2'):
@@ -135,25 +132,41 @@ class SimpleCodeGiver(nn.Module):
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
 
-class CodeGiverRaw(SimpleCodeGiver):
-    def __init__(self, device):
+class CodeGiverRaw(nn.Module):
+    def __init__(self, device: torch.device):
         super().__init__()
         self.device = device
         # Initialize encoders
-        self.pos_encoder = SentenceEncoderRaw(device)
-        self.neg_encoder = SentenceEncoderRaw(device)
-    
+        self.encoder = SentenceEncoderRaw(device)
+
+        self.fc = nn.Sequential(
+            nn.Linear(1536, 1250),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1250, 1000),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1000, 1000),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1000, 768)
+        )
+
     def forward(self, pos_texts: str, neg_texts: str):
-        return super().forward(pos_texts, neg_texts)
+        pos_embs = self.encoder(pos_texts)
+        neg_embs = self.encoder(neg_texts)
 
-    
-
-        
-
-
-
+        concatenated = torch.cat((pos_embs, neg_embs), dim=1)
+        out = self.fc(concatenated)
+        return F.normalize(out, p=2, dim=1) 
 
 
+class CombinedEncoderLayer(nn.Module):
+    def __init__(self, model_name='all-mpnet-base-v2'):
+        super().__init__()
+        self.encoder = SentenceEncoder(model_name)
+
+        self.conv_layer1 = nn.Conv1d(3, )
 
 
 

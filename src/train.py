@@ -1,19 +1,21 @@
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-from loss import CombinedTripletLoss, TripletMeanLossL2Distance, CATLoss
+from loss import CombinedTripletLoss, TripletMeanLossL2Distance, CATLoss, CATLossNormalDistribution
 from torch.utils.data import DataLoader
-from model import SimpleCodeGiver
+from model import SimpleCodeGiver, CodeGiverRaw
 from dataset import CodeGiverDataset
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
 import argparse
 import utils.utilities as utils
+from utils.hidden_vars import BASE_DIR
 
 def init_hyperparameters(model: SimpleCodeGiver, device):
-    loss_fn = CombinedTripletLoss(margin=2.0)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
-    scheduler = ExponentialLR(optimizer, gamma=0.9)
+    #loss_fn = CATLoss(device, margin=0.8, weighting=2)
+    loss_fn = CATLossNormalDistribution(stddev=5.2, margin=0.2, device=device, constant=10)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0000001, weight_decay=0.1)
+    scheduler = ExponentialLR(optimizer, gamma=0.5)
     return loss_fn, optimizer, scheduler
 
 @torch.no_grad()
@@ -29,6 +31,10 @@ def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: Combined
         total_loss += loss.item()
     model.train()
     return total_loss / len(valid_loader)
+
+@torch.no_grad()
+def calculate_avg_score():
+    ...
 
 def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
     loss_fn, optimizer, scheduler = init_hyperparameters(model, device)
@@ -81,7 +87,7 @@ def main(args):
 
     print(f"Device: {device}")
     train_dataset = CodeGiverDataset(code_dir=code_data, game_dir=guess_data)
-    train_dataloader = DataLoader(train_dataset, batch_size=400, num_workers=4)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.b, num_workers=4)
 
     valid_dataset = CodeGiverDataset(code_dir=code_data, game_dir=val_guess_data)
     valid_dataloader = DataLoader(valid_dataset, batch_size=50, num_workers=4)
@@ -89,16 +95,18 @@ def main(args):
     model = SimpleCodeGiver()
     model.to(device)
 
-    losses_train, losses_valid = train(n_epochs=10, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
+    losses_train, losses_valid = train(n_epochs=args.e, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
     utils.save_loss_plot(losses_train, losses_valid, save_path=loss_out)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-code_data', type=str, help="Codenames dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data_medium.json")
-    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/three_word_data.json")
-    parser.add_argument('-model_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/cat_model_10e_400b.pth")
-    parser.add_argument('-loss_out', type=str, default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/saved_models/cat_model_10e_400b.png")
+    parser.add_argument('-e', type=int, help="Number of epochs", default=10)
+    parser.add_argument('-b', type=int, help="Batch Size", default=400)
+    parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/five_word_data_medium.json")
+    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/five_word_data_validation.json")
+    parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
+    parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     args = parser.parse_args()
     main(args)
