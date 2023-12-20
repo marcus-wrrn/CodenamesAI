@@ -2,6 +2,7 @@ from sentence_transformers import util
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal
 import numpy as np
 
 def triplet_loss(out_embedding, pos_embeddings, neg_embeddings, margin=0):
@@ -83,6 +84,7 @@ class CATLoss(CombinedTripletLoss):
         return loss.mean()
     
 class CATLossNormalDistribution(CATLoss):
+    """Uses a normal distribution for the weighting function"""
     def __init__(self, mean: float, stddev: float, device, margin=1, weighting=1, neg_weighting=-2, constant=7, list_size=6):
         super().__init__(device, margin, weighting, neg_weighting)
         self.mean = mean
@@ -90,11 +92,11 @@ class CATLossNormalDistribution(CATLoss):
         self.constant = constant
         
         self.negative_weighting = neg_weighting
-        self.norm_distribution = self._find_norm_distribution(list_size)
+        self._norm_distribution = Normal(self.mean, self.stddev)
+        self.length = list_size
 
-    def _find_norm_distribution(self, list_size: int):
-        arranged_list = torch.arange(1, list_size + 1).to(self.device)
-        return self.constant/(np.sqrt(2*np.pi)) * np.exp(-0.5 * ((arranged_list - self.mean)/self.stddev)**2)
+    def norm_sample(self, num_elements):
+        return self._norm_distribution.sample((num_elements, ))
 
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         anchor_expanded = anchor.unsqueeze(1)
@@ -109,7 +111,6 @@ class CATLossNormalDistribution(CATLoss):
         scores = torch.mul(scores, modified_indices)
 
         # Apply normal distribution
-        scores = torch.mul(scores, self.norm_distribution)
+        scores = torch.mul(scores, self.norm_sample(len(scores)))
         loss = F.relu(scores + self.margin)
         return loss.mean()
-
