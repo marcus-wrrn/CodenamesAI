@@ -2,6 +2,7 @@ from sentence_transformers import util
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 def triplet_loss(out_embedding, pos_embeddings, neg_embeddings, margin=0):
     pos_sim = util.cos_sim(out_embedding, pos_embeddings)/len(pos_embeddings)
@@ -55,10 +56,12 @@ class TripletMeanLossL2Distance(CombinedTripletLoss):
 
 class CATLoss(CombinedTripletLoss):
     """Combined Asymmetric Triplet Loss"""
-    def __init__(self, device, margin=1):
+    def __init__(self, device, margin=1, weighting=1, neg_weighting=-2):
         super().__init__(margin)
         self.triplet_loss = nn.TripletMarginLoss(margin=self.margin, p=2)
         self.device = device
+        self.weighting = weighting
+        self.neg_weighting = neg_weighting
 
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         anchor_expanded = anchor.unsqueeze(1)
@@ -70,7 +73,7 @@ class CATLoss(CombinedTripletLoss):
         scores, indices = scores.sort(dim=1, descending=True)
         # Set all positive values to -1 and negative values to 1
         # use a larger negative 
-        modified_indices = torch.where(indices < 3, -1, 1)
+        modified_indices = torch.where(indices < 3, self.neg_weighting, self.weighting)
         scores = torch.mul(scores, modified_indices)
     
         weights = 1/torch.arange(1, scores.shape[1] + 1).to(self.device) + 1
@@ -78,3 +81,35 @@ class CATLoss(CombinedTripletLoss):
         scores = scores.mean(dim=1)
         loss = F.relu(scores + self.margin)
         return loss.mean()
+    
+class CATLossNormalDistribution(CATLoss):
+    def __init__(self, mean: float, stddev: float, device, margin=1, weighting=1, neg_weighting=-2, constant=7, list_size=6):
+        super().__init__(device, margin, weighting, neg_weighting)
+        self.mean = mean
+        self.stddev = stddev
+        self.constant = constant
+        
+        self.negative_weighting = neg_weighting
+        self.norm_distribution = self._find_norm_distribution(list_size)
+
+    def _find_norm_distribution(self, list_size: int):
+        arranged_list = torch.arange(1, list_size + 1).to(self.device)
+        return self.constant/(np.sqrt(2*np.pi)) * np.exp(-0.5 * ((arranged_list - self.mean)/self.stddev)**2)
+
+    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
+        anchor_expanded = anchor.unsqueeze(1)
+
+        pos_score = F.cosine_similarity(anchor_expanded, pos_encs, dim=2)
+        neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
+        scores = torch.cat((pos_score, neg_score), dim=1)
+
+        scores, indices = scores.sort(dim=1, descending=True)
+        modified_indices = torch.where(indices < 3, self.neg_weighting, self.weighting)
+
+        scores = torch.mul(scores, modified_indices)
+
+        # Apply normal distribution
+        scores = torch.mul(scores, self.norm_distribution)
+        loss = F.relu(scores + self.margin)
+        return loss.mean()
+
