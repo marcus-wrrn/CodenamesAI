@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from loss import CATLoss
+from loss_fns.loss import CATLoss
 from torch.optim.lr_scheduler import ExponentialLR
 from model import SimpleCodeGiver
 from torch.utils.data import DataLoader

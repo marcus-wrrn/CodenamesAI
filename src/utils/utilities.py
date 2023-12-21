@@ -22,3 +22,4 @@ def save_loss_plot(losses_train: list, losses_test: list, save_path: str):
     # Save the plot
     plt.savefig(save_path)
     plt.close()
+

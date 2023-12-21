@@ -33,10 +33,11 @@ class CodeGiverDataset(Dataset):
         self.neutral_sets = data['neutral']
 
     # Accessors
-    def get_vocab(self):
+    def get_vocab(self, guess_data=True):
         words = []
         embeddings = []
-        for key, value in self.guess_dict.items():
+        data = self.guess_dict.items() if guess_data else self.code_dict.items()
+        for key, value in data:
             words.append(key)
             embeddings.append(value)
         return words, embeddings

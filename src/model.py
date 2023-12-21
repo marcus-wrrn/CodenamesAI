@@ -26,7 +26,7 @@ def mean_pooling_ein(model_output, attention_mask):
 class SentenceEncoderRaw(nn.Module):
     """
     Sentence Transformer used for encoding input sentences. Does not use sentence_transformers library
-
+    Allows for fine-tuning
     """
     def __init__(self, 
                  device="cpu",
@@ -103,7 +103,11 @@ class EncoderLayer(nn.Module):
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
 class SimpleCodeGiver(nn.Module):
-    """Only encodes positive and negative sentences"""
+    """
+    Only encodes positive and negative sentences
+
+    Currently most stable model
+    """
     def __init__(self, model_name='all-mpnet-base-v2'):
         super().__init__()
         self.name = model_name
@@ -131,6 +135,7 @@ class SimpleCodeGiver(nn.Module):
         concatenated = torch.cat((pos_emb, neg_emb), 1)
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
+
 
 class CodeGiverRaw(nn.Module):
     def __init__(self, device: torch.device):
@@ -168,9 +173,6 @@ class CombinedEncoderLayer(nn.Module):
 
         self.conv_layer1 = nn.Conv1d(3, )
 
-
-
-
 class CodeGiver(nn.Module):
     def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
         super().__init__()
@@ -189,7 +191,6 @@ class CodeGiver(nn.Module):
         pooled = logits.mean(dim=1)
         # Normalize output
         return F.normalize(pooled, p=2, dim=1)
-
 
 def main():
     # testing

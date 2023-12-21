@@ -71,7 +71,6 @@ def main(args):
     model.to(device)
     model.eval()
 
-
     test_dataset = CodeGiverDataset(code_dir=args.code_dir, game_dir=args.geuss_dir)
 
     test_loop(model, test_dataset, device, verbose)
@@ -80,7 +79,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
     parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/five_word_data_validation.json")
-    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/cat_normed_2.8dev_0.5marg.pth")
+    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test.pth")
     parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     parser.add_argument('-v', type=str, help="Verbose [y/N]", default='Y')

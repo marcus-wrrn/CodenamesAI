@@ -15,14 +15,19 @@ class CombinedTripletLoss(nn.Module):
         super(CombinedTripletLoss, self).__init__()
         self.margin = margin
 
+    def _calc_cos_scores(self, anchor, pos_encs, neg_encs):
+        """Finds cosine similarity between all word embeddings and the model output"""
+        pos_score = F.cosine_similarity(anchor, pos_encs, dim=2)
+        neg_score = F.cosine_similarity(anchor, neg_encs, dim=2)
+        return pos_score, neg_score
+
     def forward(self, anchor, pos_encs, neg_encs):
         # Add extra dimension to anchor to align with the pos and neg encodings shape
         anchor_expanded = anchor.unsqueeze(1)   # [batch, emb_size] -> [batch, 1, emb_size]
 
-        pos_score = F.cosine_similarity(anchor_expanded, pos_encs, dim=2)
+        pos_score, neg_score = self._calc_cos_scores(anchor_expanded, pos_encs, neg_encs)
+        # Combine scores
         pos_score = torch.mean(pos_score, dim=1)
-
-        neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
         neg_score = torch.mean(neg_score, dim=1) * 3
 
         loss = neg_score - pos_score + self.margin
@@ -88,16 +93,17 @@ class CATLossNormalDistribution(CATLoss):
     def __init__(self, stddev: float, mean=0.0, device="cpu", margin=1, weighting=1, neg_weighting=-1, constant=7, list_size=6):
         super().__init__(device, margin, weighting, neg_weighting)
         self.mean = mean
-        self.stddev = stddev
+        self.std = stddev
         self.constant = constant
         
         self.negative_weighting = neg_weighting
-        self._norm_distribution = Normal(self.mean, self.stddev)
+        self._norm_distribution = Normal(self.mean, self.std)
         
 
-    def norm_sample(self, num_elements):
-        inp_tensor = torch.arange(0, num_elements).to(self.device)
-        return torch.exp(self._norm_distribution.log_prob(inp_tensor))
+    def norm_sample(self, indicies):
+        norm_dist = torch.exp(self._norm_distribution.log_prob(indicies))
+        mean = norm_dist.mean()
+        return (norm_dist - mean) / self.std
 
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         anchor_expanded = anchor.unsqueeze(1)
@@ -106,13 +112,37 @@ class CATLossNormalDistribution(CATLoss):
         neg_score = F.cosine_similarity(anchor_expanded, neg_encs, dim=2)
         scores = torch.cat((pos_score, neg_score), dim=1)
 
-        scores, indices = scores.sort(dim=1, descending=True)
-        modified_indices = torch.where(indices < 3, self.neg_weighting, self.weighting)
-
-        scores = torch.mul(scores, modified_indices)
-
-        # Apply normal distribution
-        norm_distribution = self.norm_sample(scores.shape[1]) 
+        sorted_scores, indices = scores.sort(dim=1, descending=True)
+        
+        # Create loss mask
+        size = scores.shape[1]
+        mask = torch.ones(size).to(self.device)
+        mask[size//2:] = -1
+        # mask = mask.unsqueeze(1)
+        # Apply mask
+        scores = torch.mul(scores, mask)
+        # Find normal distribution 
+        norm_distribution = self.norm_sample(indices)
+        # Apply weights 
         scores = torch.mul(scores, norm_distribution).sum(1)
         loss = F.relu(scores + self.margin)
         return loss.mean()
+
+class ScoringLoss(CombinedTripletLoss):
+    def __init__(self, margin=1, device='cpu'):
+        super().__init__(margin)
+        self.device = device
+
+    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
+        anchor_expanded = anchor.unsqueeze(1)
+        pos_scores, neg_scores = self._calc_cos_scores(anchor_expanded, pos_encs, neg_encs)
+
+        pos_sorted, _ = pos_scores.sort(descending=True, dim=1)
+        neg_sorted, _ = neg_scores.sort(descending=False, dim=1)
+        comparison = torch.where(neg_sorted > pos_sorted, 1.0, 0.0).to(self.device)
+        
+        test = neg_sorted - pos_sorted
+
+        loss = comparison.sum(1)
+        return loss.mean()
+        
