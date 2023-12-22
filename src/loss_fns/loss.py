@@ -141,8 +141,7 @@ class ScoringLoss(CombinedTripletLoss):
         neg_sorted, _ = neg_scores.sort(descending=False, dim=1)
         comparison = torch.where(neg_sorted > pos_sorted, 1.0, 0.0).to(self.device)
         
-        test = neg_sorted - pos_sorted
-
-        loss = comparison.sum(1)
+        margin = comparison.sum(1, keepdim=True)
+        loss = F.relu(neg_scores - pos_scores + margin + self.margin)
         return loss.mean()
         

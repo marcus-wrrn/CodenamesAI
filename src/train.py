@@ -14,8 +14,8 @@ from utils.hidden_vars import BASE_DIR
 def init_hyperparameters(model: SimpleCodeGiver, device):
     #loss_fn = CombinedTripletLoss(margin=0.8)
     #loss_fn = CATLoss(device, margin=0.8, weighting=2)
-    loss_fn = CATLossNormalDistribution(stddev=5.2, margin=0.01, device=device, constant=10)
-    #loss_fn = ScoringLoss(margin=0.5, device=device)
+    #loss_fn = CATLossNormalDistribution(stddev=5.2, margin=0.01, device=device, constant=10)
+    loss_fn = ScoringLoss(margin=0.6, device=device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.5)
     return loss_fn, optimizer, scheduler
@@ -105,8 +105,8 @@ if __name__ == "__main__":
     parser.add_argument('-e', type=int, help="Number of epochs", default=10)
     parser.add_argument('-b', type=int, help="Batch Size", default=400)
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
-    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/five_word_data_validation.json")
-    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/five_word_data_mini.json")
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/five_word_data_medium.json")
+    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/five_word_data_validation.json")
     parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
     parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
