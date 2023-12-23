@@ -1,6 +1,6 @@
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-from loss_fns.loss import CombinedTripletLoss,  CATLoss, CATLossNormalDistribution, ScoringLoss
+from loss_fns.loss import CombinedTripletLoss, ScoringLoss
 from torch.utils.data import DataLoader
 from model import SimpleCodeGiver, CodeGiverRaw
 from dataset import CodeGiverDataset
@@ -24,19 +24,20 @@ def init_hyperparameters(model: SimpleCodeGiver, device):
 def validate(model: SimpleCodeGiver, valid_loader: DataLoader, loss_fn: CombinedTripletLoss, device: torch.device):
     model.eval()
     total_loss = 0.0
+    total_score = 0.0
     for i, data in enumerate(valid_loader, 0):
         pos_sents, neg_sents, pos_embeddings, neg_embeddings = data
         pos_embeddings, neg_embeddings = pos_embeddings.to(device), neg_embeddings.to(device)
 
         logits = model(pos_sents, neg_sents)
-        loss = loss_fn(logits, pos_embeddings, neg_embeddings)
+        loss, score = loss_fn(logits, pos_embeddings, neg_embeddings)
         total_loss += loss.item()
+        total_score += score.item()
     model.train()
-    return total_loss / len(valid_loader)
+    avg_loss = total_loss / len(valid_loader)
+    avg_score = total_score / len(valid_loader)
 
-@torch.no_grad()
-def calculate_avg_score():
-    ...
+    return avg_loss, avg_score
 
 def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
     loss_fn, optimizer, scheduler = init_hyperparameters(model, device)
@@ -49,6 +50,7 @@ def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid
     for epoch in range(1, n_epochs + 1):
         print(f"Epoch: {epoch}")
         loss_train = 0.0
+        total_score = 0.0
         for i, data in enumerate(train_loader, 0):
             if (i % 100 == 0):
                 print(f"{datetime.datetime.now()}: Iteration: {i}/{len(train_loader)}")
@@ -60,19 +62,21 @@ def train(n_epochs: int, model: SimpleCodeGiver, train_loader: DataLoader, valid
             optimizer.zero_grad()
             logits = model(pos_sents, neg_sents)
 
-            loss = loss_fn(logits, pos_embeddings, neg_embeddings)
+            loss, score = loss_fn(logits, pos_embeddings, neg_embeddings)
+            total_score += score.item()
             loss.backward()
             optimizer.step()
             loss_train += loss.item()
             
         scheduler.step()
         avg_loss = loss_train / len(train_loader)
+        avg_score = total_score / len(train_loader) # technically average of average scores
         losses_train.append(avg_loss)
         # Validate model output
-        validation_loss = validate(model, valid_dataloader, loss_fn, device)
+        validation_loss, validation_score = validate(model, valid_dataloader, loss_fn, device)
         losses_valid.append(validation_loss)
         # Log and print save model parameters
-        training_str = f"{datetime.datetime.now()}, Epoch: {epoch}, Training Loss: {avg_loss}, Validation Loss: {validation_loss}"
+        training_str = f"{datetime.datetime.now()}, Epoch: {epoch}\nTraining Loss: {avg_loss}, Training Score: {avg_score}\nValidation Loss: {validation_loss}, Validation Score: {validation_score}\n"
         print(training_str)
         if len(losses_train) == 1 or losses_train[-1] < losses_train[-2]:
                 torch.save(model.state_dict(), model_path)
@@ -105,8 +109,8 @@ if __name__ == "__main__":
     parser.add_argument('-e', type=int, help="Number of epochs", default=10)
     parser.add_argument('-b', type=int, help="Batch Size", default=400)
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
-    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/five_word_data_medium.json")
-    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/five_word_data_validation.json")
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/five_word_data_validation.json")
+    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/five_word_data_mini.json")
     parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
     parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')

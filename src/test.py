@@ -2,6 +2,7 @@ from model import SimpleCodeGiver, SentenceEncoderRaw, CodeGiverRaw
 from dataset import CodeGiverDataset
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 import argparse
 import numpy as np
 from vector_search import VectorSearch
@@ -14,7 +15,6 @@ def calc_cos_score(anchor, pos_encs, neg_encs):
     return pos_score, neg_score
 
 def get_anchor(word_list, embedding_list, device):
-    
     ...
 
 @torch.no_grad()
@@ -23,8 +23,8 @@ def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.d
     vectorDB = VectorSearch(dataset)
     total_score = 0
     for i, data in enumerate(dataset):
-        if (i >= 10000):
-            break
+        # if (i >= 10000):
+        #     break
         pos_sents, neg_sents, pos_embs, neg_embs = data
         pos_embs, neg_embs = pos_embs.to(device), neg_embs.to(device)
         logits = model(pos_sents, neg_sents)
@@ -72,13 +72,14 @@ def main(args):
     model.eval()
 
     test_dataset = CodeGiverDataset(code_dir=args.code_dir, game_dir=args.geuss_dir)
+    dataloader = DataLoader(test_dataset, batch_size=200)
 
     test_loop(model, test_dataset, device, verbose)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/five_word_data_validation.json")
+    parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/five_word_data_mini.json")
     parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test.pth")
     parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')

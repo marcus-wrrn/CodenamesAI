@@ -75,5 +75,5 @@ class ScoringLoss(CombinedTripletLoss):
         
         final_score = comparison.sum(1, keepdim=True)
         loss = F.relu(neg_scores - pos_scores + final_score + self.margin)
-        return loss.mean(), final_score.sum(1)
+        return loss.mean(), final_score.mean(dim=0)
         
