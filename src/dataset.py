@@ -2,6 +2,7 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 import json
 from sentence_transformers import SentenceTransformer
+import random
 
 class CodeGiverDataset(Dataset):
     def __init__(self, code_dir: str, game_dir: str):
@@ -42,6 +43,19 @@ class CodeGiverDataset(Dataset):
             embeddings.append(value)
         return words, embeddings
     
+    def get_pruned_vocab(self):
+        """Returns all words/embeddings in the guess dataset that are not in the codename dataset"""
+        words = []
+        embeddings = []
+        guess_data = self.guess_dict.items()
+        for key, value in guess_data:
+            # If word exists in the code words set remove it
+            if key in self.code_dict:
+                continue
+            words.append(key)
+            embeddings.append(value)
+        return words, embeddings
+    
     def __len__(self):
         return len(self.positive_sents)
     
@@ -67,6 +81,26 @@ class CodeGiverDatasetCombinedSent(CodeGiverDataset):
         combined_sents = f"{pos_sents}\n{neg_sents}" # Experiment with different seperators (look into <SEP> token, but text should allow for multiple inputs)
         return combined_sents, pos_embeddings, neg_embeddings
 
+class CodeDatasetDualModel(CodeGiverDataset):
+    def __init__(self, code_dir: str, game_dir: str):
+        super().__init__(code_dir, game_dir)
+    
+    def _shuffle_words(self, sent: str):
+        words = sent.split(' ')
+        random.shuffle(words)
+        return ' '.join(words)
+
+    def __getitem__(self, index):
+        pos_sent = self.positive_sents[index]
+        neg_sent = self.negative_sents[index]
+        combined = pos_sent + ' ' + neg_sent
+        combined = self._shuffle_words(combined)
+
+        # Get embeddings
+        pos_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in pos_sent.split(' ')])
+        neg_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neg_sent.split(' ')])
+
+        return pos_sent, neg_sent, combined, pos_embeddings, neg_embeddings
 
 def testing_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")

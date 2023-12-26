@@ -1,13 +1,16 @@
 from sentence_transformers import SentenceTransformer, InputExample
+from torch._C import device
 from transformers import AutoTokenizer, AutoModel
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from processing.processing import Processing
 from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
+from vector_search import VectorSearch
 import numpy as np
 import os
 
+# Environment variable need to be set to remove 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 # Take attention mask into account for correct averaging
@@ -102,7 +105,7 @@ class EncoderLayer(nn.Module):
 
         return encoded['pos'], encoded['neg'], encoded['neutral'], encoded['assassin']
 
-class SimpleCodeGiver(nn.Module):
+class OldCodeGiver(nn.Module):
     """
     Only encodes positive and negative sentences
 
@@ -114,7 +117,6 @@ class SimpleCodeGiver(nn.Module):
         
         self.pos_encoder = SentenceEncoder(model_name)
         self.neg_encoder = SentenceEncoder(model_name)
-
         self.fc = nn.Sequential(
             nn.Linear(1536, 1250),
             #nn.Dropout(0.1),
@@ -136,8 +138,35 @@ class SimpleCodeGiver(nn.Module):
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
 
-
+class SimpleCodeGiver(nn.Module):
+    def __init__(self, model_name='all-mpnet-base-v2'):
+        super().__init__()
+        self.name = model_name
+        
+        self.encoder = SentenceEncoder(model_name)
+        self.fc = nn.Sequential(
+            nn.Linear(1536, 1250),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1250, 1000),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1000, 1000),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(1000, 768)
+        )
+    
+    def forward(self, pos_texts: str, neg_texts: str):
+        pos_emb = self.encoder(pos_texts)
+        neg_emb = self.encoder(neg_texts)
+        
+        concatenated = torch.cat((pos_emb, neg_emb), 1)
+        out = self.fc(concatenated)
+        return F.normalize(out, p=2, dim=1)
+    
 class CodeGiverRaw(nn.Module):
+    """Uses fine-tunable encoder for its backbone"""
     def __init__(self, device: torch.device):
         super().__init__()
         self.device = device
@@ -166,31 +195,78 @@ class CodeGiverRaw(nn.Module):
         return F.normalize(out, p=2, dim=1) 
 
 
-class CombinedEncoderLayer(nn.Module):
-    def __init__(self, model_name='all-mpnet-base-v2'):
-        super().__init__()
-        self.encoder = SentenceEncoder(model_name)
-
-        self.conv_layer1 = nn.Conv1d(3, )
-
-class CodeGiver(nn.Module):
-    def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
-        super().__init__()
-        self.model_name = model_name
+class CodeSearch(OldCodeGiver):
+    """Implements vector search to """
+    def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):
+        super().__init__(model_name)
+        self.vector_db = vector_db
         self.device = device
-        self.deberta = DebertaModel.from_pretrained(self.model_name).to(self.device)
-        self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
-        
-    def tokenize(self, positive_text: str, negative_text: str) -> torch.Tensor:
-        return self.tokenizer(positive_text, negative_text, add_special_tokens=True, return_tensors='pt').to(self.device)
+        self.selector_model = SentenceEncoderRaw(device=self.device)
 
-    def forward(self, positive_text: str, negative_text: str):
-        inputs = self.tokenize(positive_text, negative_text)
-        logits = self.deberta(**inputs).last_hidden_state
-        # Mean pool output
-        pooled = logits.mean(dim=1)
-        # Normalize output
-        return F.normalize(pooled, p=2, dim=1)
+        self.to(self.device)
+    
+    def forward(self, pos_texts: str, neg_texts: str):
+        out = super().forward(pos_texts, neg_texts)
+
+        # Perform search
+        words, embeddings, _ = self.vector_db.search(out, num_results=1)
+        words = tuple([word[0] for word in words])
+        #words = torch.tensor(words).to(self.device)
+        # search_out = torch.tensor(embeddings).to(self.device)
+        search_out = self.selector_model(words)
+
+        return out, search_out
+
+class CodeSearchDualNet(SimpleCodeGiver):
+    def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):
+        super().__init__(model_name)
+        self.vector_db = vector_db
+        self.device = device
+
+        self.search_encoder = SentenceEncoderRaw(device=self.device)
+
+        self.search_fc = nn.Sequential(
+            nn.Linear(768, 512),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            #nn.Dropout(0.1),
+            nn.ReLU(),
+            nn.Linear(512, 768),
+        )
+    
+    def forward(self, pos_texts: str, neg_texts: str, game_state: str):
+        out = super().forward(pos_texts, neg_texts)
+        # Search for and process embeddings
+        words, embeddings, _ = self.vector_db.search(out, num_results=1)
+        embeddings = torch.tensor(embeddings).to(self.device).squeeze(1)
+
+        # encoded_state = self.search_encoder(game_state)
+        # combined_state = encoded_state + embeddings
+        # search_out = F.normalize(combined_state, p=2, dim=1)
+
+        #search_out = self.search_fc(combined_state)
+        #search_out = F.normalize(search_out, p=2, dim=1)
+        return out, embeddings
+
+# class CodeGiver(nn.Module):
+#     def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
+#         super().__init__()
+#         self.model_name = model_name
+#         self.device = device
+#         self.deberta = DebertaModel.from_pretrained(self.model_name).to(self.device)
+#         self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
+        
+#     def tokenize(self, positive_text: str, negative_text: str) -> torch.Tensor:
+#         return self.tokenizer(positive_text, negative_text, add_special_tokens=True, return_tensors='pt').to(self.device)
+
+#     def forward(self, positive_text: str, negative_text: str):
+#         inputs = self.tokenize(positive_text, negative_text)
+#         logits = self.deberta(**inputs).last_hidden_state
+#         # Mean pool output
+#         pooled = logits.mean(dim=1)
+#         # Normalize output
+#         return F.normalize(pooled, p=2, dim=1)
 
 def main():
     # testing
@@ -198,7 +274,7 @@ def main():
     negative_words = "car train sun"
     device = torch.device('cuda')
 
-    encoder = SimpleCodeGiver()
+    encoder = OldCodeGiver()
     encoder.to(device)
     vals = encoder(positive_words, negative_words)
 

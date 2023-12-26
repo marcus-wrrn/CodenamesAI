@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from loss_fns.loss import CATLoss
 from torch.optim.lr_scheduler import ExponentialLR
-from model import SimpleCodeGiver
+from model import OldCodeGiver
 from torch.utils.data import DataLoader
 import datetime
 
@@ -20,7 +20,7 @@ class HyperParams:
     
 
 class TrainManager():
-    def __init__(self,  model: SimpleCodeGiver,  
+    def __init__(self,  model: OldCodeGiver,  
                  model_name: str,
                  out_path: str,
                  device="cuda"):

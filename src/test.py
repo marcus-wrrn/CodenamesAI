@@ -1,4 +1,4 @@
-from model import SimpleCodeGiver, SentenceEncoderRaw, CodeGiverRaw
+from model import OldCodeGiver, SentenceEncoderRaw, CodeGiverRaw, CodeSearchDualNet
 from dataset import CodeGiverDataset
 import torch
 import torch.nn.functional as F
@@ -18,39 +18,36 @@ def get_anchor(word_list, embedding_list, device):
     ...
 
 @torch.no_grad()
-def test_loop(model: SimpleCodeGiver, dataset: CodeGiverDataset, device: torch.device, verbose=False):
+def test_loop(model: OldCodeGiver, dataloader, dataset: CodeGiverDataset, device: torch.device, verbose=False):
     # Initialize vector search data struct
-    vectorDB = VectorSearch(dataset)
+    vectorDB = VectorSearch(dataset, prune=True)
     total_score = 0
-    for i, data in enumerate(dataset):
-        # if (i >= 10000):
-        #     break
+
+    for i, data in enumerate(dataloader):
         pos_sents, neg_sents, pos_embs, neg_embs = data
         pos_embs, neg_embs = pos_embs.to(device), neg_embs.to(device)
         logits = model(pos_sents, neg_sents)
 
-        words, embeddings, D = vectorDB.search(logits)
-        words = words[0]
+        words, embeddings, D = vectorDB.search(logits, num_results=1)
         if verbose:
             for i, word in enumerate(words):
-                print(f"{i + 1}: {word}: {D[0][i]}")
+                print(f"{i + 1}: {word[0]}: {D[i][0]}")
         
-        out_word = None
-        anchor = None
-        for i, word in enumerate(words):
-            if word not in pos_sents.split(' '):
-                out_word = word
-                anchor = torch.tensor(embeddings[0][i]).unsqueeze(0)
-                anchor = anchor.to(device)
-                break
-        pos_score, neg_score = calc_cos_score(anchor, pos_embs, neg_embs)
-        if verbose:
-            print(f"Output: {out_word}")
-            print(f"Positive: {pos_sents}\nNegative: {neg_sents}")
+        # for i, word in enumerate(words):
+        #     if word not in pos_sents.split(' '):
+        #         out_word = word
+        #         anchor = torch.tensor(embeddings[0][i]).unsqueeze(0)
+        #         anchor = anchor.to(device)
+        #         break
+        anchors = torch.tensor(embeddings).to(device)
+        pos_score, neg_score = calc_cos_score(anchors, pos_embs, neg_embs)
+        # if verbose:
+        #     print(f"Output: {out_word}")
+        #     print(f"Positive: {pos_sents}\nNegative: {neg_sents}")
             #print(f"Pos Scores: {pos_score}\nNeg Score: {neg_score}")
         pos_score, _ = pos_score.sort(descending=True)
         neg_score, _ = neg_score.sort(descending=False)
-        comparison = pos_score > neg_score
+        comparison = torch.where(pos_score > neg_score, 1., 0.).to(device)
         score = comparison.sum().item()
         if verbose: 
             print(f"Pos Scores Sorted: {pos_score}\nNeg Scores Sorted: {neg_score}")
@@ -66,7 +63,7 @@ def main(args):
     if use_raw:
         model = CodeGiverRaw(device)
     else:
-        model = SimpleCodeGiver()
+        model = OldCodeGiver()
     model.load_state_dict(torch.load(args.m))
     model.to(device)
     model.eval()
@@ -74,7 +71,7 @@ def main(args):
     test_dataset = CodeGiverDataset(code_dir=args.code_dir, game_dir=args.geuss_dir)
     dataloader = DataLoader(test_dataset, batch_size=200)
 
-    test_loop(model, test_dataset, device, verbose)
+    test_loop(model, dataloader, test_dataset, device, verbose)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

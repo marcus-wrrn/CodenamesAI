@@ -39,11 +39,14 @@ class TripletMeanLossL2Distance(CombinedTripletLoss):
 
     Interestingly loss seems about the same, even though it tests slightly lower
     More testing is required
+
+    It could also be due to the fact that the outputs are normalized and thus all have the same magnitude (exist on hypersphere) which is accounted for by just looking at the angle but leads to 
+    information loss when only comparing distance
     """
     def __init__(self, margin=1.0):
         super(TripletMeanLossL2Distance, self).__init__(margin)
     
-    def forward(self, anchor, pos_encs, neg_encs):
+    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         # Add extra dimension to anchor to align with the pos and neg encodings shape
         anchor_expanded = anchor.unsqueeze(1)  # [batch, emb_size] -> [batch, 1, emb_size]
 
@@ -65,15 +68,56 @@ class ScoringLoss(CombinedTripletLoss):
         super().__init__(margin)
         self.device = device
 
+    def _process_shape(self, pos_tensor: torch.Tensor, neg_tensor: torch.Tensor):
+        pos_dim = pos_tensor.shape[1]
+        neg_dim = neg_tensor.shape[1]
+
+        if pos_dim > neg_dim:
+            pos_tensor = pos_tensor[:, :neg_dim]
+        elif neg_dim > pos_dim:
+            dif = neg_dim - pos_dim
+            neg_tensor = neg_tensor[:, dif:]
+        
+        return pos_tensor, neg_tensor
+    
+    def _calc_score(self, pos_scores: torch.Tensor, neg_scores: torch.Tensor):
+        """
+        Compares the values of negative triplet scores to positive triplet scores.
+        Returns the total number of negative scores greater than positivefor each batch
+        """
+        pos_sorted, _ = pos_scores.sort(descending=True, dim=1)
+        neg_sorted, _ = neg_scores.sort(descending=False, dim=1)
+        
+        pos_sorted, neg_sorted = self._process_shape(pos_sorted, neg_sorted)
+        
+        comparison = torch.where(neg_sorted > pos_sorted, 1.0, 0.0).to(self.device)
+        
+        final_score = comparison.sum(1, keepdim=True)
+        return final_score
+
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         anchor_expanded = anchor.unsqueeze(1)
         pos_scores, neg_scores = self._calc_cos_scores(anchor_expanded, pos_encs, neg_encs)
 
-        pos_sorted, _ = pos_scores.sort(descending=True, dim=1)
-        neg_sorted, _ = neg_scores.sort(descending=False, dim=1)
-        comparison = torch.where(neg_sorted > pos_sorted, 1.0, 0.0).to(self.device)
+        total_score = self._calc_score(pos_scores, neg_scores)
+        loss = F.relu(neg_scores - pos_scores + total_score + self.margin)
+        return loss.mean(), total_score.mean(dim=0)
         
-        final_score = comparison.sum(1, keepdim=True)
-        loss = F.relu(neg_scores - pos_scores + final_score + self.margin)
-        return loss.mean(), final_score.mean(dim=0)
-        
+
+class ScoringLossWithModelSearch(ScoringLoss):
+    def __init__(self, margin=1, device='cpu'):
+        super().__init__(margin, device)
+    
+    def forward(self, model_out: torch.Tensor, search_out: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
+        model_expanded = model_out.unsqueeze(1)
+        search_expanded = search_out.unsqueeze(1)
+        # calculate scores compared to the search output, not the model output
+        s_pos_scores, s_neg_scores = self._calc_cos_scores(search_expanded, pos_encs, neg_encs)
+        m_pos_scores, m_neg_scores = self._calc_cos_scores(model_expanded, pos_encs, neg_encs)
+
+        total_score = self._calc_score(s_pos_scores, s_neg_scores)
+
+        loss = F.relu(m_neg_scores.mean(dim=1) - m_pos_scores.mean(dim=1) + total_score + self.margin)
+        # loss_select = F.relu(s_neg_scores - s_pos_scores + total_score + self.margin)
+        # loss = loss + loss_select
+        return loss.mean(), total_score.mean(dim=0)

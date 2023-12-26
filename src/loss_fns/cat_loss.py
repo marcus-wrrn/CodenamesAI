@@ -6,7 +6,10 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 from loss_fns.loss import CombinedTripletLoss
 import numpy as np
-
+"""
+The following code is a collection of experimental loss functions that were originally intended to be used in the project. 
+However, they did not provide desireable results and so have been moved to their own seperate file, in case they could be of use later.
+"""
 
 class CATLoss(CombinedTripletLoss):
     """Combined Asymmetric Triplet Loss"""
@@ -47,7 +50,6 @@ class CATLossNormalDistribution(CATLoss):
         self.negative_weighting = neg_weighting
         self._norm_distribution = Normal(self.mean, self.std)
         
-
     def norm_sample(self, indicies):
         norm_dist = torch.exp(self._norm_distribution.log_prob(indicies))
         mean = norm_dist.mean()
