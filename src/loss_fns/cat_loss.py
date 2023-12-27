@@ -1,4 +1,4 @@
-from dataset import CodeGiverDataset
+from datasets.dataset import CodeGiverDataset
 from sentence_transformers import util
 import torch
 import torch.nn as nn

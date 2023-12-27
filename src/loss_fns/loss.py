@@ -73,7 +73,8 @@ class ScoringLoss(CombinedTripletLoss):
         neg_dim = neg_tensor.shape[1]
 
         if pos_dim > neg_dim:
-            pos_tensor = pos_tensor[:, :neg_dim]
+            dif = pos_dim - neg_dim
+            pos_tensor = pos_tensor[:, dif:]
         elif neg_dim > pos_dim:
             dif = neg_dim - pos_dim
             neg_tensor = neg_tensor[:, dif:]

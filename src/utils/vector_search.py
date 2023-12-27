@@ -1,5 +1,5 @@
 import numpy as np
-from dataset import CodeGiverDataset
+from datasets.dataset import CodeGiverDataset
 import faiss
 import torch
 

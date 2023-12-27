@@ -1,11 +1,11 @@
 from model import  CodeSearchDualNet
-from dataset import CodeDatasetDualModel
+from datasets.dataset import CodeDatasetDualModel
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import argparse
 import numpy as np
-from vector_search import VectorSearch
+from utils.vector_search import VectorSearch
 import utils.utilities as utils
 
 def calc_cos_score(anchor, pos_encs, neg_encs):
@@ -18,32 +18,35 @@ def calc_cos_score(anchor, pos_encs, neg_encs):
 def process_shape( pos_tensor: torch.Tensor, neg_tensor: torch.Tensor):
         pos_dim = pos_tensor.shape[1]
         neg_dim = neg_tensor.shape[1]
-
+        dif = 0
         if pos_dim > neg_dim:
-            pos_tensor = pos_tensor[:, :neg_dim]
-        elif neg_dim < pos_dim:
-            neg_tensor = neg_tensor[:, :pos_dim]
+            dif = pos_dim - neg_dim
+            pos_tensor = pos_tensor[:, dif:]
+        elif neg_dim > pos_dim:
+            dif = neg_dim - pos_dim
+            neg_tensor = neg_tensor[:, dif:]
         
-        return pos_tensor, neg_tensor
+        return pos_tensor, neg_tensor, dif
 
 @torch.no_grad()
-def test_loop(model: CodeDatasetDualModel, dataloader, dataset: CodeDatasetDualModel, device: torch.device, verbose=False):
+def test_loop(model: CodeSearchDualNet, dataloader, dataset: CodeDatasetDualModel, device: torch.device, verbose=False):
 
     total_score = 0
 
     for i, data in enumerate(dataloader):
         pos_sents, neg_sents, game_state, pos_embs, neg_embs = data
         pos_embs, neg_embs = pos_embs.to(device), neg_embs.to(device)
-        _, out = model(pos_sents, neg_sents, game_state)
+        words, out, dist = model.infer(pos_sents, neg_sents)
         pos_score, neg_score = calc_cos_score(out, pos_embs, neg_embs)
 
         pos_score, _ = pos_score.sort(descending=True)
         neg_score, _ = neg_score.sort(descending=False)
-        pos_score, neg_score = process_shape(pos_score, neg_score)
+        pos_score, neg_score, dif = process_shape(pos_score, neg_score)
 
         comparison = torch.where(pos_score > neg_score, 1., 0.).to(device)
-        score = comparison.sum(dim=1).mean().item()
+        score = comparison.sum(dim=1).mean().item() + dif
         if verbose: 
+            #print(f"Words: {words}")
             #print(f"Pos Scores Sorted: {pos_score}\nNeg Scores Sorted: {neg_score}")
             print(f"Score: {score}")
         total_score += score
@@ -70,8 +73,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/five_word_data_mini.json")
-    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test.pth")
+    parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_word_data_mini.json")
+    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test_multi_new_mask.pth")
     parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     parser.add_argument('-v', type=str, help="Verbose [y/N]", default='Y')

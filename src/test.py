@@ -1,11 +1,11 @@
 from model import OldCodeGiver, SentenceEncoderRaw, CodeGiverRaw, CodeSearchDualNet
-from dataset import CodeGiverDataset
+from datasets.dataset import CodeGiverDataset
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import argparse
 import numpy as np
-from vector_search import VectorSearch
+from utils.vector_search import VectorSearch
 import utils.utilities as utils
 
 def calc_cos_score(anchor, pos_encs, neg_encs):

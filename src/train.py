@@ -3,7 +3,7 @@ from torch.optim.lr_scheduler import ExponentialLR
 from loss_fns.loss import CombinedTripletLoss, ScoringLoss
 from torch.utils.data import DataLoader
 from model import OldCodeGiver, CodeGiverRaw
-from dataset import CodeGiverDataset
+from datasets.dataset import CodeGiverDataset
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime

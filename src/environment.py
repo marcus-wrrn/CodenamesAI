@@ -113,11 +113,11 @@ def create_dataset(game_manager: GameManager, filepath: str, num_datapoints: int
 
 def main():
     wordfile = "/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json"
-    practice_dataset = "/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/multi_word_data_mini.json"
+    practice_dataset = "/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_twenty_data_mini.json"
 
 
     encoder = SentenceTransformer('all-mpnet-base-v2')
-    manager = GameManager(wordfile, encoder, num_positive=8, num_negative=5, has_assassin=False, nwords=15)
+    manager = GameManager(wordfile, encoder, num_positive=20, num_negative=20, has_assassin=True, nwords=50)
     create_dataset(manager, practice_dataset, num_datapoints=10000)
 
     

@@ -3,7 +3,7 @@ from torch.optim.lr_scheduler import ExponentialLR
 from loss_fns.loss import CombinedTripletLoss, TripletMeanLossL2Distance
 from torch.utils.data import DataLoader
 from model import OldCodeGiver, SentenceEncoderRaw
-from dataset import CodeGiverDatasetCombinedSent
+from datasets.dataset import CodeGiverDatasetCombinedSent
 import datetime
 import argparse
 import utils.utilities as utils

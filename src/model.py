@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from processing.processing import Processing
 from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
-from vector_search import VectorSearch
+from utils.vector_search import VectorSearch
 import numpy as np
 import os
 
@@ -164,6 +164,21 @@ class SimpleCodeGiver(nn.Module):
         concatenated = torch.cat((pos_emb, neg_emb), 1)
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
+
+class SimpleCodeGiverPooled(SimpleCodeGiver):
+    """
+    Like SimpleCodeGiver but mean pools the input embeddings using text strings
+    """
+    def __init__(self, model_name='all-mpnet-base-v2'):
+        super().__init__(model_name)
+    
+    def forward(self, pos_embeddings: torch.Tensor, neg_embeddings: torch.Tensor):
+        pos_emb = pos_embeddings.mean(dim=1)
+        neg_emb = neg_embeddings.mean(dim=1)
+
+        concatenated = torch.cat((pos_emb, neg_emb), 1)
+        out = self.fc(concatenated)
+        return F.normalize(out, p=2, dim=1)
     
 class CodeGiverRaw(nn.Module):
     """Uses fine-tunable encoder for its backbone"""
@@ -217,6 +232,14 @@ class CodeSearch(OldCodeGiver):
 
         return out, search_out
 
+class CodeSearchMeanPool(SimpleCodeGiverPooled):
+    def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):
+        super().__init__(model_name)
+        self.vector_db = vector_db
+        self.device = device
+
+        
+
 class CodeSearchDualNet(SimpleCodeGiver):
     def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):
         super().__init__(model_name)
@@ -235,38 +258,22 @@ class CodeSearchDualNet(SimpleCodeGiver):
             nn.Linear(512, 768),
         )
     
-    def forward(self, pos_texts: str, neg_texts: str, game_state: str):
+    @torch.no_grad
+    def infer(self, pos_texts: str, neg_texts: str):
+        out = super().forward(pos_texts, neg_texts)
+        words, embeddings, dist = self.vector_db.search(out, num_results=1)
+        embeddings = torch.tensor(embeddings).to(self.device).squeeze(1)
+
+        return words, embeddings, dist
+
+    def forward(self, pos_texts: str, neg_texts: str):
         out = super().forward(pos_texts, neg_texts)
         # Search for and process embeddings
         words, embeddings, _ = self.vector_db.search(out, num_results=1)
         embeddings = torch.tensor(embeddings).to(self.device).squeeze(1)
-
-        # encoded_state = self.search_encoder(game_state)
-        # combined_state = encoded_state + embeddings
-        # search_out = F.normalize(combined_state, p=2, dim=1)
-
-        #search_out = self.search_fc(combined_state)
-        #search_out = F.normalize(search_out, p=2, dim=1)
         return out, embeddings
 
-# class CodeGiver(nn.Module):
-#     def __init__(self, model_name="microsoft/deberta-base", device=torch.device('cpu')) -> None:
-#         super().__init__()
-#         self.model_name = model_name
-#         self.device = device
-#         self.deberta = DebertaModel.from_pretrained(self.model_name).to(self.device)
-#         self.tokenizer = DebertaTokenizer.from_pretrained(self.model_name)
-        
-#     def tokenize(self, positive_text: str, negative_text: str) -> torch.Tensor:
-#         return self.tokenizer(positive_text, negative_text, add_special_tokens=True, return_tensors='pt').to(self.device)
 
-#     def forward(self, positive_text: str, negative_text: str):
-#         inputs = self.tokenize(positive_text, negative_text)
-#         logits = self.deberta(**inputs).last_hidden_state
-#         # Mean pool output
-#         pooled = logits.mean(dim=1)
-#         # Normalize output
-#         return F.normalize(pooled, p=2, dim=1)
 
 def main():
     # testing

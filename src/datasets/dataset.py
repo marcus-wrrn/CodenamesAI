@@ -94,7 +94,7 @@ class CodeDatasetDualModel(CodeGiverDataset):
         pos_sent = self.positive_sents[index]
         neg_sent = self.negative_sents[index]
         combined = pos_sent + ' ' + neg_sent
-        combined = self._shuffle_words(combined)
+        #combined = self._shuffle_words(combined)
 
         # Get embeddings
         pos_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in pos_sent.split(' ')])
