@@ -1,9 +1,9 @@
 import torch
 from torch.optim.lr_scheduler import ExponentialLR
-from loss_fns.loss import CombinedTripletLoss, ScoringLoss, ScoringLossWithModelSearch
+from loss_fns.loss import  ScoringLossWithModelSearch
 from torch.utils.data import DataLoader
-from model import CodeSearch, CodeSearchDualNet
-from datasets.dataset import CodeGiverDataset, CodeDatasetDualModel
+from models.model import CodeSearchMeanPool
+from datasets.dataset import CodeDatasetDualModel
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
@@ -12,32 +12,30 @@ import utils.utilities as utils
 from utils.vector_search import VectorSearch
 from utils.hidden_vars import BASE_DIR
 
-def init_hyperparameters(model: CodeSearch, device):
+def init_hyperparameters(model: CodeSearchMeanPool, device):
     loss_fn = ScoringLossWithModelSearch(margin=0.2, device=device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
 
 @torch.no_grad()
-def validate(model: CodeSearch, valid_loader: DataLoader, loss_fn: CombinedTripletLoss, device: torch.device):
-    model.eval()
+def validate(model: CodeSearchMeanPool, valid_loader: DataLoader, loss_fn: ScoringLossWithModelSearch, device: torch.device):
     total_loss = 0.0
     total_score = 0.0
     for i, data in enumerate(valid_loader, 0):
-        pos_sents, neg_sents, neutral, pos_embeddings, neg_embeddings = data
+        pos_sents, neg_sents, pos_embeddings, neg_embeddings = data
         pos_embeddings, neg_embeddings = pos_embeddings.to(device), neg_embeddings.to(device)
 
-        logits_out, logits_search = model(pos_sents, neg_sents, neutral)
+        logits_out, logits_search = model(pos_embeddings, neg_embeddings)
         loss, score = loss_fn(logits_out, logits_search, pos_embeddings, neg_embeddings)
         total_loss += loss.item()
         total_score += score.item()
-    model.train()
     avg_loss = total_loss / len(valid_loader)
     avg_score = total_score / len(valid_loader)
 
     return avg_loss, avg_score
 
-def train(n_epochs: int, model: CodeSearch, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
+def train(n_epochs: int, model: CodeSearchMeanPool, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
     loss_fn, optimizer, scheduler = init_hyperparameters(model, device)
     print("Training")
     model.train()
@@ -52,13 +50,13 @@ def train(n_epochs: int, model: CodeSearch, train_loader: DataLoader, valid_data
         for i, data in enumerate(train_loader, 0):
             if (i % 100 == 0):
                 print(f"{datetime.datetime.now()}: Iteration: {i}/{len(train_loader)}")
-            pos_sents, neg_sents, combined_sents, pos_embeddings, neg_embeddings = data
+            pos_sents, neg_sents, pos_embeddings, neg_embeddings = data
             # Put embeddings on device
             pos_embeddings = pos_embeddings.to(device)
             neg_embeddings = neg_embeddings.to(device)
             
             optimizer.zero_grad()
-            logits_out, logits_search = model(pos_sents, neg_sents, combined_sents)
+            logits_out, logits_search = model(pos_embeddings, neg_embeddings)
 
             loss, score = loss_fn(logits_out, logits_search, pos_embeddings, neg_embeddings)
             total_score += score.item()
@@ -97,7 +95,7 @@ def main(args):
     valid_dataloader = DataLoader(valid_dataset, batch_size=50, num_workers=4)
 
     vector_db = VectorSearch(train_dataset, prune=True)
-    model = CodeSearchDualNet(vector_db, device)
+    model = CodeSearchMeanPool(vector_db, device)
     model.to(device)
 
     losses_train, losses_valid = train(n_epochs=args.e, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
@@ -108,8 +106,8 @@ if __name__ == "__main__":
     parser.add_argument('-e', type=int, help="Number of epochs", default=10)
     parser.add_argument('-b', type=int, help="Batch Size", default=400)
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
-    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/codewords_twenty_data_valid.json")
-    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/codewords_twenty_data_mini.json")
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/codewords_full_data_valid.json")
+    parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/codewords_full_data_mini.json")
     parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
     parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')

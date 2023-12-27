@@ -1,4 +1,4 @@
-from model import OldCodeGiver, SentenceEncoderRaw, CodeGiverRaw, CodeSearchDualNet
+from models.model import OldCodeGiver, SentenceEncoderRaw, CodeGiverRaw, CodeSearchDualNet
 from datasets.dataset import CodeGiverDataset
 import torch
 import torch.nn.functional as F

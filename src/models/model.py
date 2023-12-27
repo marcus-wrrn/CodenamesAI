@@ -1,11 +1,9 @@
-from sentence_transformers import SentenceTransformer, InputExample
-from torch._C import device
+from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModel
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from processing.processing import Processing
-from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
+#from transformers import DebertaConfig, DebertaModel, DebertaTokenizer
 from utils.vector_search import VectorSearch
 import numpy as np
 import os
@@ -238,7 +236,13 @@ class CodeSearchMeanPool(SimpleCodeGiverPooled):
         self.vector_db = vector_db
         self.device = device
 
-        
+    def forward(self, pos_embeddings: torch.Tensor, neg_embeddings: torch.Tensor):
+        out = super().forward(pos_embeddings, neg_embeddings)
+        words, embeddings, dist = self.vector_db.search(out, num_results=1)
+        embeddings = torch.tensor(embeddings).to(self.device).squeeze(1)
+        if self.training:
+            return out, embeddings
+        return words, embeddings, dist
 
 class CodeSearchDualNet(SimpleCodeGiver):
     def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):

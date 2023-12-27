@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from loss_fns.loss import CATLoss
 from torch.optim.lr_scheduler import ExponentialLR
-from model import OldCodeGiver
+from models.model import OldCodeGiver
 from torch.utils.data import DataLoader
 import datetime
 

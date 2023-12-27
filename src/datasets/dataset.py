@@ -93,14 +93,14 @@ class CodeDatasetDualModel(CodeGiverDataset):
     def __getitem__(self, index):
         pos_sent = self.positive_sents[index]
         neg_sent = self.negative_sents[index]
-        combined = pos_sent + ' ' + neg_sent
+        #combined = pos_sent + ' ' + neg_sent
         #combined = self._shuffle_words(combined)
 
         # Get embeddings
         pos_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in pos_sent.split(' ')])
         neg_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neg_sent.split(' ')])
 
-        return pos_sent, neg_sent, combined, pos_embeddings, neg_embeddings
+        return pos_sent, neg_sent, pos_embeddings, neg_embeddings
 
 def testing_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")

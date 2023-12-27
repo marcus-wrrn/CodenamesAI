@@ -1,4 +1,4 @@
-from model import  CodeSearchDualNet
+from models.model import  CodeSearchDualNet
 from datasets.dataset import CodeDatasetDualModel
 import torch
 import torch.nn.functional as F
