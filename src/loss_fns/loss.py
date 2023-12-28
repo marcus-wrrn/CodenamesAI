@@ -98,7 +98,7 @@ class ScoringLoss(CombinedTripletLoss):
 
         if self.normalize:
             final_score = final_score * 1/comparison.shape[1]
-            
+
         return final_score
 
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
@@ -112,7 +112,7 @@ class ScoringLoss(CombinedTripletLoss):
 
 class ScoringLossWithModelSearch(ScoringLoss):
     def __init__(self, margin=1, device='cpu', normalize=True):
-        super().__init__(margin, device)
+        super().__init__(margin, device, normalize)
     
     def forward(self, model_out: torch.Tensor, search_out: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
         model_expanded = model_out.unsqueeze(1)

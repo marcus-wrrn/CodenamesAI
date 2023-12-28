@@ -12,8 +12,8 @@ import utils.utilities as utils
 from utils.vector_search import VectorSearch
 from utils.hidden_vars import BASE_DIR
 
-def init_hyperparameters(model: CodeSearchMeanPool, device):
-    loss_fn = ScoringLossWithModelSearch(margin=0.2, device=device)
+def init_hyperparameters(model: CodeSearchMeanPool, device, normalize_reward):
+    loss_fn = ScoringLossWithModelSearch(margin=0.2, device=device, normalize=normalize_reward)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
     scheduler = ExponentialLR(optimizer, gamma=0.9)
     return loss_fn, optimizer, scheduler
@@ -35,8 +35,8 @@ def validate(model: CodeSearchMeanPool, valid_loader: DataLoader, loss_fn: Scori
 
     return avg_loss, avg_score
 
-def train(n_epochs: int, model: CodeSearchMeanPool, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str):
-    loss_fn, optimizer, scheduler = init_hyperparameters(model, device)
+def train(n_epochs: int, model: CodeSearchMeanPool, train_loader: DataLoader, valid_dataloader: DataLoader, device: torch.device, model_path: str, normalize_reward: bool):
+    loss_fn, optimizer, scheduler = init_hyperparameters(model, device, normalize_reward)
     print("Training")
     model.train()
 
@@ -81,11 +81,14 @@ def train(n_epochs: int, model: CodeSearchMeanPool, train_loader: DataLoader, va
 
 def main(args):
     device = utils.get_device(args.cuda)
+    # extract cli arguments
     code_data = args.code_data
     guess_data = args.guess_data
     val_guess_data = args.val_guess_data
     model_out = args.model_out
     loss_out = args.loss_out
+
+    normalize_reward = True if args.norm.lower() == 'y' else False
 
     print(f"Device: {device}")
     train_dataset = CodeDatasetDualModel(code_dir=code_data, game_dir=guess_data)
@@ -98,7 +101,7 @@ def main(args):
     model = CodeSearchMeanPool(vector_db, device)
     model.to(device)
 
-    losses_train, losses_valid = train(n_epochs=args.e, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out)
+    losses_train, losses_valid = train(n_epochs=args.e, model=model, train_loader=train_dataloader, valid_dataloader=valid_dataloader, device=device, model_path=model_out, normalize_reward=normalize_reward)
     utils.save_loss_plot(losses_train, losses_valid, save_path=loss_out)
 
 if __name__ == "__main__":
@@ -107,6 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('-b', type=int, help="Batch Size", default=400)
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
     parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/codewords_full_data_valid.json")
+    parser.add_argument('-norm', type=str, help="Whether to normalize reward function, [Y/n]", default='N')
     parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/codewords_full_data_mini.json")
     parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
     parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")

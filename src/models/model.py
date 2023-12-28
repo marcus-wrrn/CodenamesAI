@@ -173,7 +173,7 @@ class SimpleCodeGiverPooled(SimpleCodeGiver):
     def forward(self, pos_embeddings: torch.Tensor, neg_embeddings: torch.Tensor):
         pos_emb = pos_embeddings.mean(dim=1)
         neg_emb = neg_embeddings.mean(dim=1)
-
+        
         concatenated = torch.cat((pos_emb, neg_emb), 1)
         out = self.fc(concatenated)
         return F.normalize(out, p=2, dim=1)
@@ -209,7 +209,7 @@ class CodeGiverRaw(nn.Module):
 
 
 class CodeSearch(OldCodeGiver):
-    """Implements vector search to """
+    """Implements vector search as part of its forward pass"""
     def __init__(self, vector_db: VectorSearch, device: torch.device, model_name='all-mpnet-base-v2'):
         super().__init__(model_name)
         self.vector_db = vector_db

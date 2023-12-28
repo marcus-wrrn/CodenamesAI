@@ -1,4 +1,4 @@
-from models.model import  CodeSearchDualNet
+from models.model import  CodeSearchMeanPool
 from datasets.dataset import CodeDatasetDualModel
 import torch
 import torch.nn.functional as F
@@ -29,14 +29,14 @@ def process_shape( pos_tensor: torch.Tensor, neg_tensor: torch.Tensor):
         return pos_tensor, neg_tensor, dif
 
 @torch.no_grad()
-def test_loop(model: CodeSearchDualNet, dataloader, dataset: CodeDatasetDualModel, device: torch.device, verbose=False):
+def test_loop(model: CodeSearchMeanPool, dataloader, dataset: CodeDatasetDualModel, device: torch.device, verbose=False):
 
     total_score = 0
-
+    model.eval()
     for i, data in enumerate(dataloader):
-        pos_sents, neg_sents, game_state, pos_embs, neg_embs = data
+        pos_sents, neg_sents, pos_embs, neg_embs = data
         pos_embs, neg_embs = pos_embs.to(device), neg_embs.to(device)
-        words, out, dist = model.infer(pos_sents, neg_sents)
+        words, out, dist = model(pos_embs, neg_embs)
         pos_score, neg_score = calc_cos_score(out, pos_embs, neg_embs)
 
         pos_score, _ = pos_score.sort(descending=True)
@@ -56,14 +56,14 @@ def test_loop(model: CodeSearchDualNet, dataloader, dataset: CodeDatasetDualMode
 def main(args):
     device = utils.get_device(args.cuda)
     verbose = True if args.v.lower() == 'y' else False
-    
+
     # Initialize data
-    test_dataset = CodeDatasetDualModel(code_dir=args.code_dir, game_dir=args.geuss_dir)
+    test_dataset = CodeDatasetDualModel(code_dir=args.code_dir, game_dir=args.guess_dir)
     dataloader = DataLoader(test_dataset, batch_size=200)
     vector_db = VectorSearch(test_dataset, prune=True)
 
     # Initialize model
-    model = CodeSearchDualNet(vector_db, device)
+    model = CodeSearchMeanPool(vector_db, device)
     model.load_state_dict(torch.load(args.m))
     model.to(device)
     model.eval()
@@ -73,7 +73,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    parser.add_argument('-geuss_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_word_data_mini.json")
+    parser.add_argument('-guess_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_word_data_mini.json")
     parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test_multi_new_mask.pth")
     parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
