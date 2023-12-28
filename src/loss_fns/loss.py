@@ -64,8 +64,9 @@ class TripletMeanLossL2Distance(CombinedTripletLoss):
         return loss.mean()
 
 class ScoringLoss(CombinedTripletLoss):
-    def __init__(self, margin=1, device='cpu'):
+    def __init__(self, margin=1, device='cpu', normalize=True):
         super().__init__(margin)
+        self.normalize = normalize
         self.device = device
 
     def _process_shape(self, pos_tensor: torch.Tensor, neg_tensor: torch.Tensor):
@@ -94,6 +95,10 @@ class ScoringLoss(CombinedTripletLoss):
         comparison = torch.where(neg_sorted > pos_sorted, 1.0, 0.0).to(self.device)
         
         final_score = comparison.sum(1, keepdim=True)
+
+        if self.normalize:
+            final_score = final_score * 1/comparison.shape[1]
+            
         return final_score
 
     def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
@@ -106,7 +111,7 @@ class ScoringLoss(CombinedTripletLoss):
         
 
 class ScoringLossWithModelSearch(ScoringLoss):
-    def __init__(self, margin=1, device='cpu'):
+    def __init__(self, margin=1, device='cpu', normalize=True):
         super().__init__(margin, device)
     
     def forward(self, model_out: torch.Tensor, search_out: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor):
