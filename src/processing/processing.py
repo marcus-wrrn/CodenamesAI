@@ -7,7 +7,7 @@ class Processing:
             self.codewords = self._get_words(filepath)
             self.code_embeddings = self._get_embeddings(encoder, self.codewords)
 
-            self.guesses = self._get_words("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/nouns.txt")
+            self.guesses = self._get_words("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/webster.txt")
             self.geuss_embeddings = self._get_embeddings(encoder, self.guesses)
         else:
             with open(filepath, 'r') as file:
@@ -43,4 +43,4 @@ class Processing:
 
 if __name__ == "__main__":
     proc = Processing(encoder=None, filepath="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/wordlist-eng.txt", download=True)
-    proc.to_json("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
+    proc.to_json("/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words_extended.json")

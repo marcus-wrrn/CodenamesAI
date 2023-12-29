@@ -31,7 +31,7 @@ class CodeGiverDataset(Dataset):
     def _process_game_data(self, data: json):
         self.positive_sents = data['positive']
         self.negative_sents = data['negative']
-        self.neutral_sets = data['neutral']
+        self.neutral_sents = data['neutral']
 
     # Accessors
     def get_vocab(self, guess_data=True):
@@ -81,7 +81,8 @@ class CodeGiverDatasetCombinedSent(CodeGiverDataset):
         combined_sents = f"{pos_sents}\n{neg_sents}" # Experiment with different seperators (look into <SEP> token, but text should allow for multiple inputs)
         return combined_sents, pos_embeddings, neg_embeddings
 
-class CodeDatasetDualModel(CodeGiverDataset):
+class CodeDatasetMultiObjective(CodeGiverDataset):
+    """Uses both positive, negative and neutral words/embeddings"""
     def __init__(self, code_dir: str, game_dir: str):
         super().__init__(code_dir, game_dir)
     
@@ -93,14 +94,16 @@ class CodeDatasetDualModel(CodeGiverDataset):
     def __getitem__(self, index):
         pos_sent = self.positive_sents[index]
         neg_sent = self.negative_sents[index]
+        neutral_sent = self.neutral_sents[index]
         #combined = pos_sent + ' ' + neg_sent
         #combined = self._shuffle_words(combined)
 
         # Get embeddings
         pos_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in pos_sent.split(' ')])
         neg_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neg_sent.split(' ')])
+        neutral_embeddings = torch.stack([torch.tensor(self.code_dict[word]) for word in neutral_sent.split(' ')])
 
-        return pos_sent, neg_sent, pos_embeddings, neg_embeddings
+        return pos_sent, neg_sent, neutral_sent, pos_embeddings, neg_embeddings, neutral_embeddings
 
 def testing_dataloader():
     dataset = CodeGiverDataset(code_dir="../data/words.json", game_dir="../data/three_word_data.json")

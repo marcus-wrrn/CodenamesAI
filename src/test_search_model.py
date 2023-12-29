@@ -1,5 +1,5 @@
 from models.model import  CodeSearchMeanPool
-from datasets.dataset import CodeDatasetDualModel
+from datasets.dataset import CodeDatasetMultiObjective, CodeGiverDataset
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -25,11 +25,12 @@ def process_shape( pos_tensor: torch.Tensor, neg_tensor: torch.Tensor):
         elif neg_dim > pos_dim:
             dif = neg_dim - pos_dim
             neg_tensor = neg_tensor[:, dif:]
+            dif = 0 # set difference back to zero to avoid it being counted in the score function
         
         return pos_tensor, neg_tensor, dif
 
 @torch.no_grad()
-def test_loop(model: CodeSearchMeanPool, dataloader, dataset: CodeDatasetDualModel, device: torch.device, verbose=False):
+def test_loop(model: CodeSearchMeanPool, dataloader, dataset: CodeDatasetMultiObjective, device: torch.device, verbose=False):
 
     total_score = 0
     model.eval()
@@ -48,6 +49,7 @@ def test_loop(model: CodeSearchMeanPool, dataloader, dataset: CodeDatasetDualMod
         if verbose: 
             #print(f"Words: {words}")
             #print(f"Pos Scores Sorted: {pos_score}\nNeg Scores Sorted: {neg_score}")
+            #print(comparison[0])
             print(f"Score: {score}")
         total_score += score
         i += 1
@@ -58,7 +60,7 @@ def main(args):
     verbose = True if args.v.lower() == 'y' else False
 
     # Initialize data
-    test_dataset = CodeDatasetDualModel(code_dir=args.code_dir, game_dir=args.guess_dir)
+    test_dataset = CodeGiverDataset(code_dir=args.code_dir, game_dir=args.guess_dir)
     dataloader = DataLoader(test_dataset, batch_size=200)
     vector_db = VectorSearch(test_dataset, prune=True)
 
@@ -73,9 +75,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-code_dir', type=str, help='Dataset Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/words.json")
-    parser.add_argument('-guess_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_word_data_mini.json")
-    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test_multi_new_mask.pth")
-    parser.add_argument('-raw', type=str, help="Use the Raw Sentence Encoder, [y/N]", default='N')
+    parser.add_argument('-guess_dir', type=str, help="", default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/data/codewords_16neg_data_mini.json")
+    parser.add_argument('-m', type=str, help='Model Path', default="/home/marcuswrrn/Projects/Machine_Learning/NLP/codenames/test_16neg.pth")
     parser.add_argument('-cuda', type=str, help="Whether to use CPU or Cuda, use Y or N", default='Y')
     parser.add_argument('-v', type=str, help="Verbose [y/N]", default='Y')
     args = parser.parse_args()

@@ -127,3 +127,10 @@ class ScoringLossWithModelSearch(ScoringLoss):
         # loss_select = F.relu(s_neg_scores - s_pos_scores + total_score + self.margin)
         # loss = loss + loss_select
         return loss.mean(), total_score.mean(dim=0)
+
+class MultiObjectiveScoringLoss(ScoringLoss):
+    def __init__(self, margin=1, device='cpu', normalize=True):
+        super().__init__(margin, device, normalize)
+    
+    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor, neutral_encs: torch.Tensor):
+        ...

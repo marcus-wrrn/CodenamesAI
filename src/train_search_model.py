@@ -3,9 +3,8 @@ from torch.optim.lr_scheduler import ExponentialLR
 from loss_fns.loss import  ScoringLossWithModelSearch
 from torch.utils.data import DataLoader
 from models.model import CodeSearchMeanPool
-from datasets.dataset import CodeDatasetDualModel
+from datasets.dataset import CodeGiverDataset
 import numpy as np
-import matplotlib.pyplot as plt
 import datetime
 import argparse
 import utils.utilities as utils
@@ -91,10 +90,10 @@ def main(args):
     normalize_reward = True if args.norm.lower() == 'y' else False
 
     print(f"Device: {device}")
-    train_dataset = CodeDatasetDualModel(code_dir=code_data, game_dir=guess_data)
+    train_dataset = CodeGiverDataset(code_dir=code_data, game_dir=guess_data)
     train_dataloader = DataLoader(train_dataset, batch_size=args.b, num_workers=4)
 
-    valid_dataset = CodeDatasetDualModel(code_dir=code_data, game_dir=val_guess_data)
+    valid_dataset = CodeGiverDataset(code_dir=code_data, game_dir=val_guess_data)
     valid_dataloader = DataLoader(valid_dataset, batch_size=50, num_workers=4)
 
     vector_db = VectorSearch(train_dataset, prune=True)
@@ -109,8 +108,8 @@ if __name__ == "__main__":
     parser.add_argument('-e', type=int, help="Number of epochs", default=10)
     parser.add_argument('-b', type=int, help="Batch Size", default=400)
     parser.add_argument('-code_data', type=str, help="Codenames dataset path", default=BASE_DIR + "data/words.json")
-    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/codewords_full_data_valid.json")
-    parser.add_argument('-norm', type=str, help="Whether to normalize reward function, [Y/n]", default='N')
+    parser.add_argument('-guess_data', type=str, help="Geuss words dataset path", default=BASE_DIR + "data/codewords_16neg_data_valid.json")
+    parser.add_argument('-norm', type=str, help="Whether to normalize reward function, [Y/n]", default='Y')
     parser.add_argument('-val_guess_data', type=str, help="Filepath for the validation dataset", default=BASE_DIR + "data/codewords_full_data_mini.json")
     parser.add_argument('-model_out', type=str, default=BASE_DIR + "/saved_models/cat_model_10e_400b.pth")
     parser.add_argument('-loss_out', type=str, default=BASE_DIR + "saved_models/cat_model_10e_400b.png")

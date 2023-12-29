@@ -172,7 +172,9 @@ class SimpleCodeGiverPooled(SimpleCodeGiver):
     
     def forward(self, pos_embeddings: torch.Tensor, neg_embeddings: torch.Tensor):
         pos_emb = pos_embeddings.mean(dim=1)
+        pos_emb = F.normalize(pos_emb, p=2, dim=1)
         neg_emb = neg_embeddings.mean(dim=1)
+        neg_emb = F.normalize(neg_emb, p=2, dim=1)
         
         concatenated = torch.cat((pos_emb, neg_emb), 1)
         out = self.fc(concatenated)
