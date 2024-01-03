@@ -128,9 +128,75 @@ class ScoringLossWithModelSearch(ScoringLoss):
         # loss = loss + loss_select
         return loss.mean(), total_score.mean(dim=0)
 
-class MultiObjectiveScoringLoss(ScoringLoss):
-    def __init__(self, margin=1, device='cpu', normalize=True):
-        super().__init__(margin, device, normalize)
+class MultiObjectiveScoringLoss(nn.Module):
+    def __init__(self, margin=0.2, device='cpu', normalize=True):
+        super().__init__()
+        self.margin = margin
+        self.device = device
+        self.normalize = normalize
     
-    def forward(self, anchor: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor, neutral_encs: torch.Tensor):
-        ...
+    def _calc_cos_sim(self, anchor: torch.Tensor, pos: torch.Tensor, neg: torch.Tensor, neutral: torch.Tensor):
+        pos_score = F.cosine_similarity(anchor, pos, dim=2)
+        neg_score = F.cosine_similarity(anchor, neg, dim=2)
+        neutral_score = F.cosine_similarity(anchor, neutral, dim=2)
+        return pos_score, neg_score, neutral_score
+    
+    def _find_results(self, pos_scores, neg_scores, neutral_scores):
+        combined_scores = torch.cat((pos_scores, neg_scores, neutral_scores), dim=1)
+        # Find sorted indices
+        _, indices = combined_scores.sort(dim=1, descending=True)
+        # create reward copies
+        pos_reward = torch.zeros(pos_scores.shape[1]).to(self.device)
+        neg_reward = torch.ones(neg_scores.shape[1]).to(self.device) * 2
+        neut_reward = torch.ones(neutral_scores.shape[1]).to(self.device) 
+
+        combined_rewards = torch.cat((pos_reward, neg_reward, neut_reward))
+        combined_rewards = combined_rewards.expand((combined_scores.shape[0], combined_rewards.shape[0]))
+        rewards = torch.gather(combined_rewards, 1, indices)
+
+        non_zero_mask = torch.where(rewards != 0, 1., 0.)
+        first_non_pos_index = torch.argmax(non_zero_mask, dim=1)
+        first_vals = rewards[torch.arange(rewards.size(0)), first_non_pos_index]
+        return first_non_pos_index, first_vals
+    
+    def _calc_reward(self, pos_scores: torch.Tensor, neg_scores: torch.Tensor, neutral_scores: torch.Tensor):
+        num_positive, word_class = self._find_results(pos_scores, neg_scores, neutral_scores)
+        target_loss = 1- num_positive/pos_scores.shape[1]
+
+        return target_loss, word_class - 1
+
+    
+    def forward(self, model_out: torch.Tensor, search_out: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor, neutral_encs: torch.Tensor):
+        model_out_expanded = model_out.unsqueeze(1)
+        search_out_expanded = search_out.unsqueeze(1)
+
+        m_pos_score, m_neg_score, m_neut_score = self._calc_cos_sim(model_out_expanded, pos_encs, neg_encs, neutral_encs)
+        s_pos_score, s_neg_score, s_neut_score = self._calc_cos_sim(search_out_expanded, pos_encs, neg_encs, neutral_encs)
+
+        target_loss, results = self._calc_reward(s_pos_score, s_neg_score, s_neut_score)
+        neg_score = torch.cat((m_neg_score, m_neut_score), dim=1).mean(dim=1)
+        loss = F.relu((neg_score - m_pos_score.mean(dim=1)) * target_loss + self.margin)
+        return loss.mean(), target_loss.mean(), results.mean()
+
+class TestLoss(nn.Module):
+    def __init__(self, margin=0.2, device='cpu', normalize=True):
+        super().__init__()
+        self.margin = margin
+        self.device = device
+        self.normalize = normalize
+    
+    def _calc_cos_sim(self, anchor: torch.Tensor, pos: torch.Tensor, neg: torch.Tensor, neutral: torch.Tensor):
+        pos_score = F.cosine_similarity(anchor, pos, dim=2)
+        neg_score = F.cosine_similarity(anchor, neg, dim=2)
+        neutral_score = F.cosine_similarity(anchor, neutral, dim=2)
+        return pos_score, neg_score, neutral_score
+    
+    def forward(self, model_out: torch.Tensor, search_max: torch.Tensor, search_min: torch.Tensor, pos_encs: torch.Tensor, neg_encs: torch.Tensor, neutral_encs: torch.Tensor):
+        model_out_expanded = model_out.unsqueeze(1)
+
+        m_pos_score, m_neg_score, m_neut_score = self._calc_cos_sim(model_out_expanded, pos_encs, neg_encs, neutral_encs)
+        neg_score = torch.cat((m_neg_score, m_neut_score), dim=1).mean(dim=1)
+        loss_model = F.relu((neg_score - m_pos_score.mean(dim=1) + self.margin)).mean()
+        loss_search = F.triplet_margin_loss(model_out, search_min, search_max, margin=0.9)
+
+        return loss_model + loss_search
